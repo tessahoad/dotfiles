@@ -1,0 +1,32 @@
+
+#!/bin/bash
+
+msgFile=$1
+src=$2
+sha1=$3
+
+trunkRegex="^(main|master)*$"
+validBranchRegex="^.*((SDPR)-[0-9]+).*"
+
+if [[ -n "$src" ]]; then
+    # Accept the standard Git message for the following actions:
+    #   message / template / merge / squash / commit
+    true
+
+else
+    shopt -s nocasematch
+
+    branchName="$(git branch --show-current)"
+
+    if [[ "${branchName}" =~ $trunkRegex ]]; then
+        # Committing on trunk
+        true
+    elif [[ "${branchName}" =~ $validBranchRegex ]]; then
+        jiraTicket="${BASH_REMATCH[1]}"
+        originalContent=$(cat "$msgFile")
+        echo "${jiraTicket} " | tr '[:lower:]' '[:upper:]' > "$msgFile"
+        echo "$originalContent" >> "$msgFile"
+    fi
+
+    shopt -u nocasematch
+fi

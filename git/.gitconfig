@@ -1,0 +1,24 @@
+[user]
+	useConfigOnly = true
+
+[push]
+    default = simple
+
+[init]
+	defaultBranch = main
+
+[fetch]
+	prune = true
+
+[pull]
+	rebase = true
+
+[core]
+	autocrlf = input
+	hooksPath = ~/.githooks
+
+[includeIf "gitdir:~/Developer/recommenders/"]
+    path = ~/Developer/recommenders/.gitconfig
+
+[includeIf "gitdir:~/Developer/tessahoad/"]
+    path = ~/Developer/tessahoad/.gitconfig

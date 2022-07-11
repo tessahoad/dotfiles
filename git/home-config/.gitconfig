@@ -1,0 +1,6 @@
+[user]
+    name = Tessa Hoad
+    email = contact@tessahoad.co.uk
+
+[include]
+    path = .gitconfig.local

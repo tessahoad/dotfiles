@@ -1,0 +1,6 @@
+[user]
+    name = Tessa Hoad
+    email = t.hoad@elsevier.com
+
+[include]
+    path = .gitconfig.local

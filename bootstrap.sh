@@ -12,18 +12,11 @@ setopt EXTENDED_GLOB
 
 # Files to link to in $HOME
 FILES=(
-    "ssh/.ssh"
     "git/.gitconfig"
     "git/.githooks"
-    "zsh/.bashrc"
-    "zsh/.commonrc"
-    "zsh/.zsh-completion"
     "zsh/.zshenv"
-    "zsh/.zshenv.no-commit"
+    "zsh/.zshenv.secret"
     "zsh/.zshrc"
-    "zsh/.zshrc.ELSLAPM-156986"
-    "zsh/.zshrc.darwin"
-    "zsh/.zshrc.no-commit"
 )
 
 RED='\033[0;31m'
@@ -112,5 +105,3 @@ create-links-for-files $HOME/.config "$CONFIG_DIRS[@]"
 
 create-links-for-files-at-path ~/Developer/tessahoad    git/home-config
 create-links-for-files-at-path ~/Developer/recommenders git/elsevier-config
-
-brew bundle --file ./brew/Brewfile

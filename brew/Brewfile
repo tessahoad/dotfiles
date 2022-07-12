@@ -12,7 +12,6 @@ tap "homebrew/core"
 
 # Java
 cask "temurin"                                  # temurin jdk
-cask "temurin8"
 
 # Basics
 cask "iterm2"                                   # Terminal emulator as alternative to Apple's Terminal app
@@ -89,7 +88,7 @@ brew "sonar-scanner"                            # Launcher to analyze a project 
 brew "node"
 
 # Python
-brew "miniconda"
+cask "miniconda"
 
 # Other apps
 cask "insomnia"

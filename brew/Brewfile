@@ -1,0 +1,99 @@
+################################################################################
+# Prerequisites
+################################################################################
+
+tap "homebrew/bundle"
+tap "homebrew/cask"
+tap "homebrew/core"
+
+################################################################################
+# Applications
+################################################################################
+
+# Java
+cask "temurin"                                  # temurin jdk
+cask "temurin8"
+
+# Basics
+cask "iterm2"                                   # Terminal emulator as alternative to Apple's Terminal app
+
+# Encryption
+brew "gnupg"                                    # GNU Pretty Good Privacy (PGP) package
+cask "gpg-suite"                                # GPG Suite
+cask "keybase"                                  # End-to-end encryption software
+
+################################################################################
+# Utilities
+################################################################################
+
+brew "cmake"                                    # Cross-platform make
+brew "coreutils"                                # GNU File, Shell, and Text utilities
+brew "entr"                                     # Run arbitrary commands when files change
+brew "findutils"                                # Collection of GNU find, xargs, and locate
+brew "gnu-sed"                                  # GNU implementation of the famous stream editor
+brew "htop"                                     # Improved top (interactive process viewer)
+brew "jq"                                       # Lightweight and flexible command-line JSON processor
+brew "ncdu"                                     # NCurses Disk Usage
+brew "ripgrep"                                  # Improved grepping
+brew "the_silver_searcher"                      # Code-search similar to ack
+brew "tree"                                     # Display directories as trees (with optional color/HTML output)
+brew "watch"                                    # Executes a program periodically, showing output fullscreen
+brew "wget"                                     # Internet file retriever
+brew "zsh"                                      # UNIX shell (command interpreter)
+
+################################################################################
+# Development
+################################################################################
+
+# Version control
+brew "git"                                      # Distributed revision control system
+brew "git-secret"                               # Bash-tool to store the private data inside a git repo
+brew "gh"                                       # GitHub command-line tool
+
+# Java
+cask "visualvm"                                 # JVM visualiser
+brew "maven"                                    # Java-based project management
+brew "gradle"                                   # Open-source build automation tool based on the Groovy and Kotlin DSL
+
+# Scala
+brew "sbt"                                      # Build tool for Scala projects
+brew "scala"                                    # JVM-based programming language
+
+# Python
+brew "python"                                   # Interpreted, interactive, object-oriented programming language
+brew "python@2"                                 # Interpreted, interactive, object-oriented programming language
+
+# AWS
+brew "awscli"                                   # Official Amazon AWS command-line interface
+brew "terraform", link: false                   # Tool to build, change, and version infrastructure
+brew "tfenv", link: true                        # Terraform version manager inspired by rbenv
+
+# Containers
+brew "aws-iam-authenticator"                    # Use AWS IAM credentials to authenticate to Kubernetes
+brew "docker"                                   # Pack, ship and run any application as a lightweight container
+brew "docker-compose"                           # Isolated development environments using Docker
+brew "docker-machine"                           # Create Docker hosts locally and on cloud providers
+brew "kubernetes-cli"                           # Kubernetes command-line interface
+brew "lazydocker"                               # The lazier way to manage everything docker
+
+tap 'derailed/k9s'
+brew "derailed/k9s/k9s"                         # Kubernetes CLI To Manage Your Clusters In Style!
+
+# Kafka
+brew "kafkacat"                                 # Generic command-line non-JVM Apache Kafka producer and consumer
+
+# SonarScanner for SonarQube
+brew "sonar-scanner"                            # Launcher to analyze a project with SonarQube
+
+# Javascript
+brew "node"
+
+# Python
+brew "miniconda"
+
+# Other apps
+cask "insomnia"
+cask "slack"
+cask "spotify"
+cask "sublime-text"
+cask "visualvm"

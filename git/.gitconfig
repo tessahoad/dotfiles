@@ -1,5 +1,7 @@
 [user]
 	useConfigOnly = true
+	name = tessahoad
+	email = t.hoad@elsevier.com
 
 [push]
     default = simple

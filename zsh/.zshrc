@@ -5,6 +5,9 @@ export PATH=$HOME/bin:/usr/local/bin:$PATH
 export ZSH="$HOME/.oh-my-zsh"
 export FZF_BASE=/usr/local/opt/fzf/install
 
+# Default editor
+export EDITOR="nano"
+
 # See https://github.com/ohmyzsh/ohmyzsh/wiki/Themes
 ZSH_THEME="agnoster"
 
@@ -286,6 +289,17 @@ function install-java-certificate() {
 # Specific tools                                                            {{{1
 # ==============================================================================
 
+
+# jq                                {{{2
+# ======================================
+
+# Display the paths to the values in the JSON
+# cat foo.json | jq-paths
+function jq-paths() {
+    # Taken from https://github.com/stedolan/jq/issues/243
+    jq '[path(..)|map(if type=="number" then "[]" else tostring end)|join(".")|split(".[]")|join("[]")]|unique|map("."+.)|.[]'
+}
+
 # Git                               {{{2
 # ======================================
 
@@ -422,6 +436,11 @@ function git-repos-status() {
     git-for-each-repo display-status | column -t -s ','
 }
 
+# Java                              {{{2
+# ======================================
+
+alias get-java-locations="/usr/libexec/java_home -V"
+alias use-java-8="export JAVA_HOME=`/usr/libexec/java_home -v 1.8`"
 
 # AWS authentication                {{{2
 # ======================================
@@ -448,6 +467,7 @@ function aws-developer-role() {
 
 alias aws-recs-dev-developer="aws-developer-role $SECRET_ACC_RECS_DEV ADFS-Developer aws-rap-recommendersdev"
 alias aws-recs-prod-developer="aws-developer-role $SECRET_ACC_RECS_PROD ADFS-Developer aws-rap-recommendersprod"
+alias aws-recs-prod-enterprise-admin="aws-developer-role $SECRET_ACC_RECS_PROD ADFS-EnterpriseAdmin aws-rap-recommendersprod"
 
 function aws-recs-login() {
     if [[ $# -ne 1 ]]; then

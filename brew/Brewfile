@@ -75,6 +75,9 @@ brew "docker-machine"                           # Create Docker hosts locally an
 brew "kubernetes-cli"                           # Kubernetes command-line interface
 brew "lazydocker"                               # The lazier way to manage everything docker
 
+tap "theurichde/go-aws-sso"
+brew "theurichde/go-aws-sso/go-aws-sso"        # Make working with AWS SSO on local machines easy
+
 tap 'derailed/k9s'
 brew "derailed/k9s/k9s"                         # Kubernetes CLI To Manage Your Clusters In Style!
 

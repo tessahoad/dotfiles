@@ -66,6 +66,7 @@ alias env='env | sort'                                                      # en
 alias tree='tree -A'                                                        # tree should be ascii
 alias entr='entr -c'                                                        # entr should be colourised
 alias sed='gsed'                                                            # Use gsed instead of sed
+alias date='gdate'                                                          # Use gdate instead of date
 
 # Other useful stuff
 alias reload-zsh-config="exec zsh"                                          # Reload Zsh config
@@ -449,55 +450,25 @@ alias aws-which="env | grep AWS | sort"
 alias aws-clear-variables="for i in \$(aws-which | cut -d= -f1,1 | paste -); do unset \$i; done"
 alias aws-who-am-i="aws sts get-caller-identity"
 
-function aws-switch-role() {
-    declare roleARN=$1 profile=$2
+function jq-get() {
+    declare json=$1 key=$2
+    jq -r "$key" <<< "$json"
+}
 
-    export username=hoadt@science.regn.net
-    LOGIN_OUTPUT="$(aws-adfs login --adfs-host federation.reedelsevier.com --region us-east-1 --session-duration 14400 --role-arn $roleARN --env --profile $profile --printenv | grep export)"
-    AWS_ENV="$(echo $LOGIN_OUTPUT | grep export)"
-    eval $AWS_ENV
+function aws-role() {
+    declare accountId=$1 role=$2 profile=$3
+    local login_output
+    login_output=$(go-aws-sso assume --account-id $accountId --role-name $role --profile $profile --force)
+    export AWS_ACCESS_KEY_ID=$(jq-get $login_output .AccessKeyId)
     export AWS_REGION=us-east-1
+    export AWS_SECRET_ACCESS_KEY=$(jq-get $login_output .SecretAccessKey)
+    export AWS_SESSION_TOKEN=$(jq-get $login_output .SessionToken)
     aws-which
 }
 
-function aws-developer-role() {
-    declare accountId=$1 role=$2 profile=$3
-    aws-switch-role "arn:aws:iam::${accountId}:role/${role}" "${profile}"
-}
-
-alias aws-recs-dev-developer="aws-developer-role $SECRET_ACC_RECS_DEV ADFS-Developer aws-rap-recommendersdev"
-alias aws-recs-prod-developer="aws-developer-role $SECRET_ACC_RECS_PROD ADFS-Developer aws-rap-recommendersprod"
-alias aws-recs-prod-enterprise-admin="aws-developer-role $SECRET_ACC_RECS_PROD ADFS-EnterpriseAdmin aws-rap-recommendersprod"
-
-function aws-recs-login() {
-    if [[ $# -ne 1 ]]; then
-        echo "Usage: aws-recs-login (dev|staging|live)"
-    else
-        local recsEnv=$1
-
-        case "${recsEnv}" in
-            dev*)
-                aws-recs-dev
-            ;;
-
-            staging*)
-                aws-recs-dev
-            ;;
-
-            live*)
-                aws-recs-prod
-            ;;
-
-            *)
-                echo "ERROR: Unrecognised environment ${recsEnv}"
-                return -1
-            ;;
-        esac
-    fi
-}
-compdef "_arguments \
-    '1:environment arg:(dev staging live)'" \
-    aws-recs-login
+alias aws-recs-dev-enterprise-admin="aws-role $SECRET_ACC_RECS_DEV EnterpriseAdmin recs-dev-enterprise-admin"
+alias aws-recs-live-enterprise-admin="aws-role $SECRET_ACC_RECS_PROD EnterpriseAdmin recs-live-enterprise-admin"
+alias aws-recs-live-developer="aws-role $SECRET_ACC_RECS_PROD Developer recs-live-developer"
 
 # AWS helper functions              {{{2
 # ======================================
@@ -539,25 +510,6 @@ function aws-lambda-statuses() {
         | sort \
         | highlight red '.*Disabled.*' \
         | highlight yellow '.*\(Enabling\|Disabling\|Updating\).*'
-}
-
-# List EMR statuses
-function aws-emr-status() {
-    if [[ $# -ne 1 ]]; then
-        echo "Usage: aws-recs-login (dev|staging|live)"
-    else
-        local clusterId=$1
-        aws emr list-steps \
-            --cluster-id "${clusterId}" \
-            | jq -r '.Steps[] | [.Name, .Status.State, .Status.Timeline.StartDateTime, .Status.Timeline.EndDateTime] | @csv' \
-            | column -t -s ',' \
-            | sed 's/"//g'
-
-        aws emr describe-cluster \
-            --cluster-id "${clusterId}" \
-            | jq -r ".Cluster | (.LogUri + .Id)" \
-            | sed 's/s3n:/s3:/'
-    fi
 }
 
 # Open the specified S3 bucket in the web browser

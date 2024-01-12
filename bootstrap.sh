@@ -17,6 +17,7 @@ FILES=(
     "zsh/.zshenv"
     "zsh/.zshenv.secret"
     "zsh/.zshrc"
+    "q/.qrc"
 )
 
 RED='\033[0;31m'
@@ -105,3 +106,4 @@ create-links-for-files $HOME/.config "$CONFIG_DIRS[@]"
 
 create-links-for-files-at-path ~/Developer/tessahoad    git/home-config
 create-links-for-files-at-path ~/Developer/recommenders git/elsevier-config
+

@@ -5,6 +5,7 @@
 tap "homebrew/bundle"
 tap "homebrew/cask"
 tap "homebrew/core"
+tap "harelba/q"
 
 ################################################################################
 # Applications
@@ -32,6 +33,7 @@ brew "findutils"                                # Collection of GNU find, xargs,
 brew "gnu-sed"                                  # GNU implementation of the famous stream editor
 brew "htop"                                     # Improved top (interactive process viewer)
 brew "jq"                                       # Lightweight and flexible command-line JSON processor
+brew "q"                                        # CSV processor that lets you query csv with SQL
 brew "ncdu"                                     # NCurses Disk Usage
 brew "ripgrep"                                  # Improved grepping
 brew "the_silver_searcher"                      # Code-search similar to ack

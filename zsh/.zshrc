@@ -74,6 +74,26 @@ alias zsh-startup='time  zsh -i -c exit'                                    # Di
 alias display-colours='msgcat --color=test'                                 # Display terminal colors
 alias list-ports='netstat -anv'                                             # List active ports
 
+
+# IntelliJ and Pycharm                                                      {{{1
+# ==============================================================================
+
+function _launch-jetbrains-tool() {
+    local cmd=$1
+    shift
+    local args=$@
+
+    if [[ $# -eq 0 ]] ; then
+        args='.'
+    fi
+
+    zsh -c "${cmd} ${args} > /dev/null 2>&1 &"
+}
+compdef _files _launch-jetbrains-tool
+
+alias charm='_launch-jetbrains-tool pycharm'                                # Launch PyCharm
+alias idea='_launch-jetbrains-tool idea'                                    # Launch IntelliJ
+
 # General functions                                                         {{{1
 # ==============================================================================
 

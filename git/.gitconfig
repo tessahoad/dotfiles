@@ -5,6 +5,7 @@
 
 [push]
     default = simple
+	autoSetupRemote = true
 
 [init]
 	defaultBranch = main
@@ -24,11 +25,6 @@
 
 [includeIf "gitdir:~/Developer/tessahoad/"]
     path = ~/Developer/tessahoad/.gitconfig
-[filter "lfs"]
-	process = git-lfs filter-process
-	required = true
-	clean = git-lfs clean -- %f
-	smudge = git-lfs smudge -- %f
 [mailmap]
 	file = ~/.mailmap
 [alias]

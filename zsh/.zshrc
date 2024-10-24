@@ -1,5 +1,3 @@
-# Fig pre block. Keep at the top of this file.
-[[ -f "$HOME/.fig/shell/zshrc.pre.zsh" ]] && builtin source "$HOME/.fig/shell/zshrc.pre.zsh"
 # If you come from bash you might have to change your $PATH.
 export PATH=$HOME/bin:/usr/local/bin:$PATH
 
@@ -1055,6 +1053,15 @@ function git-stats-most-recent-commits-by-repo() {
 alias get-java-locations="/usr/libexec/java_home -V"
 alias use-java-8="export JAVA_HOME=`/usr/libexec/java_home -v 1.8`"
 
+function use-java() {
+    if [[ $# -ne 1 ]]; then
+        echo "Usage: aws-java (1.8|11|17)"
+    else
+        declare java_v=$1
+        export JAVA_HOME=`/usr/libexec/java_home -v $java_v`
+    fi
+}
+
 # AWS authentication                {{{2
 # ======================================
 
@@ -1070,7 +1077,7 @@ function jq-get() {
 function aws-role() {
     declare accountId=$1 role=$2 profile=$3
 
-    local login_output=$(go-aws-sso assume --account-id $accountId --role-name $role --profile $profile --force)
+    local login_output=$(go-aws-sso assume --account-id $accountId --role-name $role --profile $profile --force --quiet)
 
     export AWS_ACCESS_KEY_ID=$(jq-get $login_output .AccessKeyId)
     export AWS_REGION=us-east-1
@@ -1132,6 +1139,36 @@ aws-ecr-images () {
 		AWS_PAGER="" aws ecr describe-images --repository-name "${repo}" | jq -r '.imageDetails[] | select(has("imageTags")) | .imageTags[] | select(test( "^\\d+\\.\\d+\\.\\d+$" ))' | sort
 		gecho
 	done <<< "$repos"
+}
+
+function aws-bucket-sizes() {
+    local endTime=$(date --iso-8601=seconds)
+    local startTime=$(date --iso-8601=seconds -d "-2 day")
+
+    local buckets=$(aws s3 ls | cut -d ' ' -f 3)
+
+    while read -r bucketName; do
+        local region=$(aws s3api get-bucket-location --bucket ${bucketName} | jq -r ".LocationConstraint")
+
+        if [[ ${region} = "null" ]]; then
+            region='us-east-1'
+        fi
+
+        local size=$(aws cloudwatch get-metric-statistics \
+            --namespace AWS/S3 \
+            --start-time ${startTime} \
+            --end-time ${endTime} \
+            --period 86400 \
+            --statistics Average \
+            --region ${region} \
+            --metric-name BucketSizeBytes \
+            --dimensions Name=BucketName,Value=${bucketName} Name=StorageType,Value=StandardStorage \
+            | jq ".Datapoints[].Average" \
+            | numfmt --to=iec \
+        )
+
+        printf "%-7s %-10s %s\n" ${size} ${region} ${bucketName}
+    done < <(echo ${buckets})
 }
 
 
@@ -1273,6 +1310,86 @@ function docker-rm-images() {
     fi
 }
 
+# AMI rotation                      {{{2
+# ======================================
+
+alias kube-cycle='docker run -it \
+  -v ~/.aws:/home/gopher/.aws \
+  -v ${KUBECONFIG}:/home/gopher/.kube/config \
+  -e AWS_PROFILE -e AWS_DEFAULT_REGION -e AWS_REGION \
+  docker-tiocoreeng-common-virtual.bts.artifactory.tio.systems/kube-cycle'
+
+mute() {
+    local nrKeyId=$(aws --region us-east-1 secretsmanager get-secret-value \
+    --secret-id recs-newrelic-api-key --query SecretString --output text)
+
+    export API_KEY_REDACTED="${nrKeyId}"
+
+    curl https://api.newrelic.com/graphql \
+    -H 'Content-Type: application/json' \
+    -H "API-Key: ${API_KEY_REDACTED//[$'\t\r\n ']}" \
+    --data-binary "{\"query\":\"mutation {\n  alertsMutingRuleUpdate(rule: {enabled: true}, id: ${SECRET_NEWRELIC_MUTING_RULE_ID}, accountId: ${SECRET_NEWRELIC_ACCOUNT_ID}) {\n    id\n  }\n}\", \"variables\":\"\"}"
+
+    echo 'Muted New Relic Alerts Prod'
+}
+
+check_status () {
+    # curl -s -w "%{http_code}" -o >(printf "|%s") -X GET "https://${API}.staging.recs.d.elsevier.com/api" 2>/dev/null
+    curl -s -w "%{http_code}" -o >(printf "|%s") -X GET "https://${API}.recs.d.elsevier.com/api" 2>/dev/null
+    # curl -s -w "%{http_code}" -o >(printf "|%s") -X GET "https://${API}.dev.recs.d.elsevier.com/api" 2>/dev/null
+}
+
+unmute() {
+    local APIS=(
+    article-recommendations-tailored.api
+    fi-recommender.api
+    library-stats.api
+    raven-email-sent-stats.api
+    recs-events-service.api
+    recs-focus-stats.api
+    recs-reviewers-recommender.api
+    sd-article-recommendations.api
+    sd-logged-email-events.api
+    sd-related-articles.api
+    sd-user-activity.api
+    sd-user-recommendations.api
+    )
+    (
+        for API in "${APIS[@]}"
+        do
+            status=$(check_status)
+            # my_array+=$(curl -s -w "%{http_code}" -o >(printf "|%s") -X GET "https://${API}.recs.d.elsevier.com/api" 2>/dev/null) 
+            printf ${API[@]}
+            while [[ ${status[@]} =~ 404 ]]
+                do 
+                    echo "404s, waiting"
+                    sleep 60   
+                    status=$(check_status)
+                    printf ${API[@]}       
+                done 
+        done
+    )
+
+
+    local nrKeyId=$(aws --region us-east-1 secretsmanager get-secret-value \
+    --secret-id recs-newrelic-api-key --query SecretString --output text)
+
+    export API_KEY_REDACTED="${nrKeyId}"
+
+    curl https://api.newrelic.com/graphql \
+    -H 'Content-Type: application/json' \
+    -H "API-Key: ${API_KEY_REDACTED//[$'\t\r\n ']}" \
+    --data-binary "{\"query\":\"mutation {\n  alertsMutingRuleUpdate(rule: {enabled: false}, id: ${SECRET_NEWRELIC_MUTING_RULE_ID}, accountId: ${SECRET_NEWRELIC_ACCOUNT_ID}) {\n    id\n  }\n}\", \"variables\":\"\"}"
+
+    echo 'Unmuted New Relic Alerts Prod'
+}
+
+rotation () {
+  mute
+  kube-cycle --cordon
+  unmute
+}
+
 # Jira                              {{{2
 # ======================================
 
@@ -1297,9 +1414,6 @@ recs-reviewers-lambda-timings () {
 	fi
 }
 
-# Fig post block. Keep at the bottom of this file.
-[[ -f "$HOME/.fig/shell/zshrc.post.zsh" ]] && builtin source "$HOME/.fig/shell/zshrc.post.zsh"
-
 # vim:fdm=marker
 
 # Printing                                                                  {{{1
@@ -1313,11 +1427,6 @@ function start-printer-service() {
         alias start-printer-service="open /Applications/uniFLOW\ SmartClient.app"
     fi
 }
-
-# Zoom                                                                      {{{1
-# ==============================================================================
-
-alias recs-zoom="open '"${SECRET_RECS_ZOOM_URL}"'"
 
 # SSH                                                                       {{{1
 # ==============================================================================
@@ -1978,3 +2087,7 @@ HEREDOC
 compdef "_arguments \
     '1:environment arg:(dev staging live)'" \
     rr-lambda-backlog
+
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion

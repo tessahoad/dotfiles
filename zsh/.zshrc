@@ -1,5 +1,7 @@
+autoload -Uz compinit
+
 # If you come from bash you might have to change your $PATH.
-export PATH=$HOME/bin:/usr/local/bin:$PATH
+export PATH=/opt/homebrew/bin:$HOME/bin:/usr/local/bin:$PATH
 
 # Path to your oh-my-zsh installation.
 export ZSH="$HOME/.oh-my-zsh"
@@ -78,21 +80,21 @@ alias list-ports='netstat -anv'                                             # Li
 # IntelliJ and Pycharm                                                      {{{1
 # ==============================================================================
 
-function _launch-jetbrains-tool() {
-    local cmd=$1
-    shift
-    local args=$@
-
-    if [[ $# -eq 0 ]] ; then
-        args='.'
-    fi
-
-    zsh -c "${cmd} ${args} > /dev/null 2>&1 &"
-}
-compdef _files _launch-jetbrains-tool
-
-alias charm='_launch-jetbrains-tool pycharm'                                # Launch PyCharm
-alias idea='_launch-jetbrains-tool idea'                                    # Launch IntelliJ
+# function _launch-jetbrains-tool() {
+#     local cmd=$1
+#     shift
+#     local args=$@
+#
+#     if [[ $# -eq 0 ]] ; then
+#         args='.'
+#     fi
+#
+#     zsh -c "${cmd} ${args} > /dev/null 2>&1 &"
+# }
+# compdef _files _launch-jetbrains-tool
+#
+# alias charm='_launch-jetbrains-tool pycharm'                                # Launch PyCharm
+# alias idea='_launch-jetbrains-tool idea'                                    # Launch IntelliJ
 
 # General functions                                                         {{{1
 # ==============================================================================
@@ -309,22 +311,84 @@ function scp-skeleton-config() {
 }
 compdef _ssh scp-skeleton-config=ssh
 
-function install-java-certificate() {
+# function install-java-certificate() {
+#     if [[ $# -ne 1 ]] ; then
+#         echo 'Usage: install-java-certificate FILE'
+#         return 1
+#     fi
+#
+#     local certificate=$1
+#
+#     local keystores=$(find /Library -name cacerts | grep JavaVirtualMachines)
+#     while IFS= read -r keystore; do
+#         echo
+#         echo sudo keytool -importcert -file \
+#             "${certificate}" -keystore "${keystore}" -alias Zscalar
+#
+#         # keytool -list -keystore "${keystore}" | grep -i zscalar
+#     done <<< "${keystores}"
+# }
+
+function certificate-java-list() {
+    local defaultPassword=changeit
+
+    local rootPathsToCheck=(
+        /Library
+        /Applications/DBeaver.app
+    )
+
+    for rootPath in "${rootPathsToCheck[@]}"
+    do
+        local keystores=$(find ${rootPath} -name cacerts)
+        while IFS= read -r keystore; do
+            echo
+            echo "${keystore}"
+            local output=$(keytool -storepass ${defaultPassword} -keystore "${keystore}" -list)
+            echo "${output}" | highlight blue '.*'
+        done <<< "${keystores}"
+    done
+}
+
+function certificate-java-install() {
     if [[ $# -ne 1 ]] ; then
-        echo 'Usage: install-java-certificate FILE'
+        echo 'Usage: certificate-java-install FILE'
+        echo
+        echo 'Example:'
+        echo 'certificate-java-install /Users/white1/Dev/certificates/ZscalerRootCertificate-2048-SHA256.crt'
+        echo 'Default keystore password is changeit'
         return 1
     fi
 
-    local certificate=$1
+    local certFile=$1
+    local certAlias=$(basename ${certFile})
+    local defaultPassword=changeit
 
-    local keystores=$(find /Library -name cacerts | grep JavaVirtualMachines)
-    while IFS= read -r keystore; do
-        echo
-        echo sudo keytool -importcert -file \
-            "${certificate}" -keystore "${keystore}" -alias Zscalar
+    local rootPathsToCheck=(
+        /Library
+        /Applications/DBeaver.app
+    )
 
-        # keytool -list -keystore "${keystore}" | grep -i zscalar
-    done <<< "${keystores}"
+    for rootPath in "${rootPathsToCheck[@]}"
+    do
+        local keystores=$(find ${rootPath} -name cacerts)
+        while IFS= read -r keystore; do
+            echo
+            echo "Checking ${keystore}"
+            local output=$(keytool -storepass ${defaultPassword} -keystore "${keystore}" -list -alias ${certAlias})
+            if [[ ${output} =~ 'trustedCertEntry' ]]; then
+                msg-success "Certificate present"
+            else
+                msg-error "Certificate missing -- run the following to install"
+                echo sudo keytool \
+                    -storepass ${defaultPassword} \
+                    -keystore "${keystore}" \
+                    -importcert \
+                    -file "${certFile}" \
+                    -alias ${certAlias} \
+                    -noprompt
+            fi
+        done <<< "${keystores}"
+    done
 }
 
 # Specific tools                                                            {{{1
@@ -1127,9 +1191,29 @@ function aws-recs-login() {
     fi
 }
 
+function aws-shared-search-login() {
+if [[ $# -ne 1 ]]; then
+        echo "Usage: aws-shared-search-login (dev|cert|staging|live)"
+    else
+        declare env=$1
+        case $env in
+            "dev"|"cert"|"staging")
+                aws-role $SECRET_ACC_SHARED_SEARCH_DEV EnterpriseAdmin shared-search-dev-enterprise-admin
+                ;;
+            "live")
+                aws-role $SECRET_ACC_SHARED_SEARCH_PROD Developer shared-search-live-developer
+                ;;
+            *)
+                echo "Unknown env"
+        esac
+    fi
+}
+
 alias aws-recs-dev="aws-recs-login dev"
 alias aws-recs-staging="aws-recs-login staging"
 alias aws-recs-live="aws-recs-login live"
+alias aws-shared-search-dev="aws-shared-search-login dev"
+alias aws-shared-search-live="aws-shared-search-login live"
 
 function k9s-recs() {
     if [[ $# -ne 2 ]]; then
@@ -1139,6 +1223,34 @@ function k9s-recs() {
         export KUBECONFIG=~/.kube/recs-eks-$cluster-$env.conf
         aws-recs-login $env > /dev/null
         k9s
+    fi
+}
+
+function k9s-kd() {
+    if [[ $# -ne 1 ]]; then
+        echo "Usage: k9s-kd (dev|cert|staging|live)"
+    else
+        declare env=$1
+        case $env in
+            "dev"|"cert")
+                export KUBECONFIG=~/.kube/kd-eks-nonprod.conf
+                aws-shared-search-login $env > /dev/null
+                k9s
+                ;;
+            "staging")
+                export KUBECONFIG=~/.kube/kd-eks-staging.conf
+                aws-shared-search-login $env > /dev/null
+                k9s
+                ;;
+            "live")
+                export KUBECONFIG=~/.kube/kd-eks-live.conf
+                aws-shared-search-login $env > /dev/null
+                k9s
+                ;;
+        *)
+            echo "Unknown env"
+            ;;
+        esac
     fi
 }
 

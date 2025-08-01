@@ -71,7 +71,7 @@ alias sed='gsed'                                                            # Us
 alias date='gdate'                                                          # Use gdate instead of date
 
 # Other useful stuff
-alias reload-zsh-config="exec zsh"                                          # Reload Zsh config
+alias reload-zsh-config="zsh -i"                                          # Reload Zsh config
 alias zsh-startup='time  zsh -i -c exit'                                    # Display Zsh start-up time
 alias display-colours='msgcat --color=test'                                 # Display terminal colors
 alias list-ports='netstat -anv'                                             # List active ports
@@ -104,9 +104,6 @@ alias list-ports='netstat -anv'                                             # Li
 
 alias fmt-xml='xmllint --format -'                                          # Prettify XML (cat foo.xml | fmt-xml)
 alias fmt-json='jq "."'                                                     # Prettify JSON (cat foo.json | fmt-json)
-alias tabulate-by-tab="gsed 's/\t\t/\t-\t/g' | column -t -s \$'\t'"         # Tabluate TSV (cat foo.tsv | tabulate-by-tab)
-alias tabulate-by-comma="gsed 's/,,/,-,/g' | column -t -s '','' "           # Tabluate CSV (cat foo.csv | tabulate-by-comma)
-alias tabulate-by-space='column -t -s '' '' '                               # Tabluate CSV (cat foo.txt | tabulate-by-space)
 alias as-stream='stdbuf -o0'                                                # Turn pipes to streams (tail -F foo.log | as-stream grep "bar")
 alias strip-color="gsed -r 's/\x1b\[[0-9;]*m//g'"                           # Strip ANSI colour codes (some-cmd | strip-color)
 alias strip-ansi="perl -pe 's/\x1b\[[0-9;]*[mG]//g'"                        # Strip all ANSI control codes (some-cmd | strip-ansi)
@@ -115,6 +112,27 @@ alias sum-of="paste -sd+ - | bc"                                            # Su
 
 alias csv-to-json="python3 -c 'import csv, json, sys; print(json.dumps([dict(r) for r in csv.DictReader(sys.stdin)]))'"
 alias json-to-csv='jq -r ''(map(keys) | add | unique) as $cols | map(. as $row | $cols | map($row[.])) as $rows | $cols, $rows[] | @csv'''
+
+
+# Tabluate TSV
+# cat foo.tsv | tabulate-by-tab
+function tabulate-by-tab() {
+    gsed 's/\t\t/\t-\t/g' \
+        | column -t -s $'\t'
+}
+
+# Tabluate CSV
+# cat foo.csv | tabulate-by-comma
+function tabulate-by-comma() {
+    gsed 's/,,/,-,/g' \
+        | column -t -s '',''
+}
+
+# Tabluate by space
+# cat foo.txt | tabulate-by-space
+function tabulate-by-space() {
+    column -t -s ' '
+}
 
 # File helpers                      {{{2
 # ======================================
@@ -1209,6 +1227,10 @@ if [[ $# -ne 1 ]]; then
     fi
 }
 
+function aws-deng-invovation-login() {
+    aws-role $SECRET_ACC_DENG_INVOCATION_DEV 295-InnovationUser deng-invocation-dev-innovation-user
+}
+
 alias aws-recs-dev="aws-recs-login dev"
 alias aws-recs-staging="aws-recs-login staging"
 alias aws-recs-live="aws-recs-login live"
@@ -1243,7 +1265,7 @@ function k9s-kd() {
                 k9s
                 ;;
             "live")
-                export KUBECONFIG=~/.kube/kd-eks-live.conf
+                export KUBECONFIG=~/.kube/kd-eks-prod.conf
                 aws-shared-search-login $env > /dev/null
                 k9s
                 ;;
@@ -2004,7 +2026,8 @@ function rr-lambda-performance() {
             | datamash --sort --field-separator=' ' --header-in --round=1 -g Stage min TotalDuration mean TotalDuration max TotalDuration \
             | (echo 'Stage' 'Min' 'Mean' 'Max' && cat)
     )
-    echo ${statsPerStage} | tabulate-by-space
+    echo ${statsPerStage} \
+    | tabulate-by-space
 
     # Display min, mean, and max total time
     echo
@@ -2101,12 +2124,14 @@ compdef "_arguments \
     rr-recent-recommendations
 
 function rr-lambda-invocations() {
-    if [[ $# -ne 1 ]]; then
-        echo "Usage: rr-lambda-invocations (dev|staging|live)"
+    if [[ $# -lt 1 || $# -gt 2 ]]; then
+        echo "Usage: rr-lambda-invocations (dev|staging|live) [console|csv]"
         return 1
     fi
 
     local recsEnv="${1}"
+    local outputMode="${2:-console}"
+    echo "Writing to: ${outputMode}"
     aws-recs-login $recsEnv > /dev/null
 
     lambdas=(
@@ -2115,22 +2140,41 @@ function rr-lambda-invocations() {
         recs-reviewers-recommender-lambda-${recsEnv}
     )
 
+    if [[ "$outputMode" == "csv" ]]; then
+        local output_file="lambda_invocations_${recsEnv}.csv"
+        echo "Lambda,Time,Total" > "$output_file"
+    fi
+
+    if [[ "$outputMode" == "csv" ]]; then
+        start_time=$(date --iso-8601=seconds --date='2 years ago')
+        period=$(calc '60 * 60 * 24')
+    else
+        start_time=$(date --iso-8601=seconds --date='7 days ago')
+        period=$(calc '60 * 60 * 24')
+    fi
+
     for lambda in "${lambdas[@]}"
     do
-        echo "${lambda}"
-        aws cloudwatch get-metric-statistics \
+        local data=$(aws cloudwatch get-metric-statistics \
             --namespace 'AWS/Lambda' \
             --dimensions Name=FunctionName,Value="${lambda}" \
             --metric-name 'Invocations' \
-            --start-time $(date --iso-8601=seconds --date='7 days ago') \
+            --start-time "$start_time" \
             --end-time   $(date --iso-8601=seconds) \
-            --period $(calc '60 * 60 * 24') \
+            --period $period \
             --statistics Sum \
-            | jq -r '["Time", "Total"], (.Datapoints | sort_by(.Timestamp) | .[] | [.Timestamp, .Sum]) | @csv' \
+            | jq -r --arg lambda "$lambda" '(.Datapoints | sort_by(.Timestamp) | .[] | [$lambda, .Timestamp, .Sum]) | @csv' \
             | gsed 's/"//g' \
-            | gsed "s/,,/,-,/g" \
-            | column -t -s ','
-        echo
+            | gsed "s/,,/,-,/g")
+
+        if [[ "$outputMode" == "csv" ]]; then
+            echo "Added data for ${lambda}"
+            echo "$data" >> "$output_file"
+        else
+            echo "${lambda}"
+            echo "$data" | column -t -s ','
+            echo
+        fi
     done
 }
 compdef "_arguments \

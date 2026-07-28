@@ -20,6 +20,18 @@ FILES=(
     "q/.qrc"
 )
 
+# Files to link to in $HOME/.copilot
+COPILOT_DIRS=(
+    "copilot/hooks"
+)
+
+# Files to link to in $HOME/.claude
+CLAUDE_DIRS=(
+    "claude/settings.json"
+    "claude/claude-notify.sh"
+    "claude/agents"
+)
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 NO_COLOR='\033[0m'
@@ -51,6 +63,8 @@ function create-link() {
 
     local localPath=$(relative-path $file)
     local homePath="$targetDir/$(basename $localPath)"
+
+    mkdir -p "$targetDir"
 
     if [[ -L "$homePath" ]]; then
         local linkTarget=$(readlink -- "$homePath")
@@ -99,10 +113,14 @@ function create-links-for-files-at-path() {
 # Installation                                                              {{{1
 # ==============================================================================
 
-create-links-for-files $HOME         "$FILES[@]"
+create-links-for-files $HOME          "$FILES[@]"
 
 mkdir -p $HOME/.config/
-create-links-for-files $HOME/.config "$CONFIG_DIRS[@]"
+create-links-for-files $HOME/.config  "$CONFIG_DIRS[@]"
+
+create-links-for-files $HOME/.copilot "$COPILOT_DIRS[@]"
+
+create-links-for-files $HOME/.claude  "$CLAUDE_DIRS[@]"
 
 create-links-for-files-at-path ~/Developer/tessahoad          git/home-config
 create-links-for-files-at-path ~/Developer/recommenders       git/elsevier-config

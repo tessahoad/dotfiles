@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "hooks": {
+    "agentStop": [
+      {
+        "type": "command",
+        "bash": "osascript -e 'display notification \"Copilot CLI is done — your input is needed\" with title \"GitHub Copilot\" sound name \"Purr\"'",
+        "timeoutSec": 5
+      }
+    ],
+    "sessionEnd": [
+      {
+        "type": "command",
+        "bash": "osascript -e 'display notification \"Copilot CLI session ended\" with title \"GitHub Copilot\" sound name \"Purr\"'",
+        "timeoutSec": 5
+      }
+    ]
+  }
+}

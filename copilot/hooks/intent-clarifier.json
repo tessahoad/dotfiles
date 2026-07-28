@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "hooks": {
+    "userPromptSubmitted": [
+      {
+        "type": "command",
+        "bash": "PROMPT=$(cat); echo \"$PROMPT\"; echo \"\"; echo \"Before you answer, tell me what you need to know to answer well, and point out any assumptions you'd otherwise make.\""
+      }
+    ]
+  }
+}

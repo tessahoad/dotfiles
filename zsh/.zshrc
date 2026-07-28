@@ -50,6 +50,27 @@ source $ZSH/oh-my-zsh.sh
 
 DEFAULT_USER prompt_context(){}
 
+# Override agnoster's prompt_aws to colour prod accounts (by account number) red
+prompt_aws() {
+  [[ -z "$AWS_PROFILE" || "$SHOW_AWS_PROMPT" = false ]] && return
+
+  local account
+  account=$(aws sts get-caller-identity --query Account --output text 2>/dev/null)
+
+  case "$account" in
+    "$SECRET_ACC_EMCLOUD_PROD"|"$SECRET_ACC_RECS_PROD")
+      prompt_segment "$AGNOSTER_AWS_PROD_BG" \
+                     "$AGNOSTER_AWS_PROD_FG" \
+                     "AWS: ${AWS_PROFILE:gs/%/%%}"
+      ;;
+    *)
+      prompt_segment "$AGNOSTER_AWS_BG" \
+                     "$AGNOSTER_AWS_FG" \
+                     "AWS: ${AWS_PROFILE:gs/%/%%}"
+      ;;
+  esac
+}
+
 # SSH
 export SSH_AUTH_SOCK="$HOME/.ssh/agent-socket"
 ssh-add -l >& /dev/null

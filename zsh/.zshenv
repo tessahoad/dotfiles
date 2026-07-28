@@ -55,6 +55,7 @@ function _assert-variables-defined() {
 }
 
 EXPECTED_SECRETS=(
+    SECRET_ACC_EMCLOUD_PROD
     SECRET_ACC_RECS_DEV
     SECRET_ACC_RECS_PROD
     SECRET_NEWRELIC_API_KEY
@@ -72,3 +73,4 @@ export COLOR_GREEN='\033[0;32m'
 export COLOR_YELLOW='\033[0;33m'
 export COLOR_NONE='\033[0m'
 export COLOR_CLEAR_LINE='\r\033[K'
+alias assume=". assume"

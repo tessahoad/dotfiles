@@ -353,6 +353,7 @@ function certificate-java-list() {
     local rootPathsToCheck=(
         /Library
         /Applications/DBeaver.app
+        /Users/hoadt/.vscode
     )
 
     for rootPath in "${rootPathsToCheck[@]}"
@@ -384,6 +385,7 @@ function certificate-java-install() {
     local rootPathsToCheck=(
         /Library
         /Applications/DBeaver.app
+        /Users/hoadt/.vscode
     )
 
     for rootPath in "${rootPathsToCheck[@]}"
@@ -1227,10 +1229,6 @@ if [[ $# -ne 1 ]]; then
     fi
 }
 
-function aws-deng-invovation-login() {
-    aws-role $SECRET_ACC_DENG_INVOCATION_DEV 295-InnovationUser deng-invocation-dev-innovation-user
-}
-
 alias aws-recs-dev="aws-recs-login dev"
 alias aws-recs-staging="aws-recs-login staging"
 alias aws-recs-live="aws-recs-login live"
@@ -1446,6 +1444,119 @@ function aws-secrets() {
 function aws-ip() {
     local hostname=$1
     echo "${hostname}" | sed -r 's/ip-(.+)\.ec2\.internal/\1/g' | sed -r 's/-/./g'
+}
+
+# EMR CloudWatch metrics            {{{2
+# ======================================
+
+# Dump EMR cluster CloudWatch metrics to CSV
+# Usage: aws-emr-cw-dump <cluster_id> [region] [period_seconds]
+# Period is the granularity of datapoints (default 300s = 5 min)
+# Examples:
+#   aws-emr-cw-dump j-2AXXXXXX
+#   aws-emr-cw-dump j-2AXXXXXX us-east-1
+#   aws-emr-cw-dump j-2AXXXXXX us-east-1 60
+function aws-emr-cw-dump() {
+    local cluster_id="${1:-}"
+    local region="${2:-${AWS_REGION:-us-east-1}}"
+    local period="${3:-300}"
+
+    if [[ -z "$cluster_id" ]]; then
+        echo "Usage: aws-emr-cw-dump <cluster_id> [region] [period_seconds]" >&2
+        return 1
+    fi
+
+    # Get cluster timeline from EMR
+    local cluster_info
+    cluster_info=$(aws emr describe-cluster --cluster-id "$cluster_id" --region "$region" --query 'Cluster.Status.Timeline' 2>/dev/null)
+
+    if [[ -z "$cluster_info" || "$cluster_info" == "null" ]]; then
+        echo "ERROR: Could not get cluster info for $cluster_id in $region" >&2
+        return 1
+    fi
+
+    local start_iso=$(echo "$cluster_info" | jq -r '.CreationDateTime' | cut -d'.' -f1)Z
+    local end_iso=$(echo "$cluster_info" | jq -r '.EndDateTime // empty')
+
+    if [[ -z "$end_iso" || "$end_iso" == "null" ]]; then
+        end_iso=$(gdate -u +"%Y-%m-%dT%H:%M:%SZ")
+    else
+        end_iso=$(echo "$end_iso" | cut -d'.' -f1)Z
+    fi
+
+    # Get EC2 instance IDs (CORE/TASK, fallback to include MASTER)
+    local instance_ids
+    instance_ids=$(aws emr list-instances \
+        --cluster-id "$cluster_id" \
+        --instance-group-types CORE TASK \
+        --region "$region" \
+        --query 'Instances[].Ec2InstanceId' \
+        --output text 2>/dev/null)
+
+    if [[ -z "$instance_ids" ]]; then
+        instance_ids=$(aws emr list-instances \
+            --cluster-id "$cluster_id" \
+            --instance-group-types MASTER CORE TASK \
+            --region "$region" \
+            --query 'Instances[].Ec2InstanceId' \
+            --output text 2>/dev/null)
+    fi
+
+    if [[ -z "$instance_ids" ]]; then
+        echo "ERROR: No instances found for cluster $cluster_id in $region" >&2
+        return 1
+    fi
+
+    local n_instances=$(echo "$instance_ids" | wc -w | tr -d ' ')
+    echo "Cluster : $cluster_id"
+    echo "Region  : $region"
+    echo "Range   : $start_iso → $end_iso"
+    echo "Period  : ${period}s"
+    echo "Instances (CORE/TASK): $n_instances"
+
+    # Build and execute CloudWatch query
+    local query_json
+    query_json=$(jq -n \
+        --arg start "$start_iso" \
+        --arg end "$end_iso" \
+        --arg cid "$cluster_id" \
+        --argjson period "$period" \
+        --arg ids "$instance_ids" \
+        '
+        {
+            StartTime: $start,
+            EndTime: $end,
+            ScanBy: "TimestampAscending",
+            MetricDataQueries: (
+                [
+                    {Id: "yarnmem", MetricStat: {Metric: {Namespace: "AWS/ElasticMapReduce", MetricName: "YARNMemoryAvailablePercentage", Dimensions: [{Name: "JobFlowId", Value: $cid}]}, Period: $period, Stat: "Average"}, ReturnData: true},
+                    {Id: "pending", MetricStat: {Metric: {Namespace: "AWS/ElasticMapReduce", MetricName: "ContainerPendingRatio", Dimensions: [{Name: "JobFlowId", Value: $cid}]}, Period: $period, Stat: "Average"}, ReturnData: true}
+                ] + (
+                    ($ids | split("[ \t]+"; "g") | map(select(length > 0))) | to_entries | map({
+                        Id: ("cpu" + ((.key + 1) | tostring)),
+                        MetricStat: {Metric: {Namespace: "AWS/EC2", MetricName: "CPUUtilization", Dimensions: [{Name: "InstanceId", Value: .value}]}, Period: $period, Stat: "Average"},
+                        ReturnData: true
+                    })
+                )
+            )
+        }')
+
+    local out="cloudwatch_${cluster_id}_$(echo "$start_iso" | tr ':T' '__' | sed 's/Z$//')_$(echo "$end_iso" | tr ':T' '__' | sed 's/Z$//').csv"
+
+    aws cloudwatch get-metric-data --region "$region" --cli-input-json "$query_json" \
+        | jq -r '
+            (["timestamp","metric_id","label","value","instance_id"] | @csv),
+            (.MetricDataResults[] as $r | range(0; ($r.Timestamps | length)) as $i |
+                [
+                    $r.Timestamps[$i],
+                    $r.Id,
+                    $r.Label,
+                    $r.Values[$i],
+                    (if ($r.Label | test("CPUUtilization\\s+")) then ($r.Label | sub("^CPUUtilization\\s+";"")) else "" end)
+                ] | @csv)' \
+        > "$out"
+
+    echo "Wrote: $out"
 }
 
 # Docker                            {{{2
@@ -2267,3 +2378,7 @@ compdef "_arguments \
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
 [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+export PATH="/Applications/IntelliJ IDEA.app/Contents/MacOS:$PATH"
+
+
+export PATH="$HOME/.local/bin:$PATH"

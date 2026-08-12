@@ -1,0 +1,15 @@
+{
+  "description": "Add an intent-clarification instruction to every user prompt.",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "printf '%s\\n' \"Before you answer, tell me what you need to know to answer well, and point out any assumptions you'd otherwise make.\""
+          }
+        ]
+      }
+    ]
+  }
+}

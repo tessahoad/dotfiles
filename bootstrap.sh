@@ -32,6 +32,10 @@ CLAUDE_DIRS=(
     "claude/agents"
 )
 
+CODEX_DIRS=(
+    "codex/hooks.json"
+)
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 NO_COLOR='\033[0m'
@@ -119,9 +123,10 @@ mkdir -p $HOME/.config/
 create-links-for-files $HOME/.config  "$CONFIG_DIRS[@]"
 
 create-links-for-files $HOME/.copilot "$COPILOT_DIRS[@]"
-
 create-links-for-files $HOME/.claude  "$CLAUDE_DIRS[@]"
+create-links-for-files $HOME/.codex   "$CODEX_DIRS[@]"
 
-create-links-for-files-at-path ~/Developer/tessahoad          git/home-config
-create-links-for-files-at-path ~/Developer/recommenders       git/elsevier-config
-create-links-for-files-at-path ~/Developer/recommenders-pulls git/elsevier-config
+
+create-links-for-files-at-path ~/Developer/tessahoad     git/home-config
+create-links-for-files-at-path ~/Developer/recommenders  git/elsevier-config
+create-links-for-files-at-path ~/Developer/submissions   git/elsevier-config

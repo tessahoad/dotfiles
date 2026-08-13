@@ -2,9 +2,6 @@
 # Prerequisites
 ################################################################################
 
-tap "homebrew/bundle"
-tap "homebrew/cask"
-tap "homebrew/core"
 tap "harelba/q"
 
 ################################################################################
@@ -30,7 +27,7 @@ brew "gnupg"                                    # GNU Pretty Good Privacy (PGP) 
 cask "gpg-suite"                                # GPG Suite
 
 # Notebook
-cask "obsidian"
+# cask "obsidian"
 
 # Other apps
 cask "spotify"
@@ -45,17 +42,22 @@ brew "cmake"                                    # Cross-platform make
 brew "cookiecutter"                             # Create projects from templates
 brew "coreutils"                                # GNU File, Shell, and Text utilities
 brew "datamash"                                 # Numerical and statistical operations
+brew "direnv"                                   # Load and unload environment variables depending on the current directory
+brew "duckdb"                                   # In-process SQL OLAP database management system
 tap "eddieantonio/eddieantonio"
 brew "eddieantonio/eddieantonio/imgcat"         # cat, but for images
 brew "entr"                                     # Run arbitrary commands when files change
 brew "findutils"                                # Collection of GNU find, xargs, and locate
 brew "fzf"                                      # Fuzzy finder
 brew "gnu-sed"                                  # GNU implementation of the famous stream editor
+brew "gnuplot"                                  # Command-driven interactive function plotting
 brew "graphviz"                                 # Graph visualization software
 brew "hey"                                      # HTTP load generator
 brew "htop"                                     # Improved top (interactive process viewer)
 brew "jq"                                       # Lightweight and flexible command-line JSON processor
+brew "libomp"                                   # LLVM's OpenMP runtime library
 brew "parallel"                                 # Shell parallelization
+brew "openssh"                                  # OpenBSD freely-licensed SSH connectivity tools
 brew "q"                                        # CSV processor that lets you query csv with SQL
 brew "ncdu"                                     # NCurses Disk Usage
 brew "ripgrep"                                  # Improved grepping
@@ -69,6 +71,11 @@ brew "zsh"                                      # UNIX shell (command interprete
 ################################################################################
 # Development
 ################################################################################
+
+# AI tooling
+cask "claude"                                   # Claude Desktop, the AI assistant
+cask "claude-code"                              # Claude Code CLI, the AI assistant for coding
+cask "codex"                                    # Codex CLI, the AI assistant for coding
 
 # Version control
 brew "act"                                      # Run GitHub Actions locally
@@ -84,42 +91,68 @@ cask "visualvm"                                 # JVM visualiser
 
 # Scala
 brew "coursier"                                 # Scala artifact fetching
-brew "sbt@0.13"                                 # Build tool for Scala projects
-brew "sbt@1.0"                                  # Build tool for Scala projects
-brew "scala@2.11"                               # JVM-based programming language
+brew "sbt"                                      # Build tool for Scala projects
 brew "scala@2.12"                               # JVM-based programming language
+brew "scala@2.13"                               # JVM-based programming language
 
 # Python
 brew "python"                                   # Interpreted, interactive, object-oriented programming language
+brew "python@3.9"                               # Interpreted, interactive, object-oriented programming language
 brew "python@3.10"                              # Interpreted, interactive, object-oriented programming language
+brew "python@3.11"                              # Interpreted, interactive, object-oriented programming language
+brew "python@3.12"                              # Interpreted, interactive, object-oriented programming language
+brew "pipenv"                                   # Python development workflow for humans
+brew "pipx"                                     # Install and run Python applications in isolated environments
 brew "poetry"                                   # Dependency manager
+brew "pyenv"                                    # Python version management
+brew "uv"                                       # Extremely fast Python package installer and resolver
 
 # AWS
 brew "awscli"                                   # Official Amazon AWS command-line interface
+brew "awscurl"                                  # Curl-like simplicity to access AWS resources
 brew "awslogs"                                  # Command line tool to read AWS CloudWatch logs
-brew "terraform", link: false                   # Tool to build, change, and version infrastructure
-brew "tfenv", link: true                        # Terraform version manager inspired by rbenv
+brew "s4cmd"                                    # Super S3 command-line tool for advanced users
+
+tap "hashicorp/tap"
+brew "hashicorp/tap/terraform"                  # Tool to build, change, and version infrastructure
+# brew "tfenv"                                    # Terraform version manager inspired by rbenv
+tap "terraform-linters/tap"
+cask "terraform-linters/tap/tflint"             # Terraform linter focused on possible errors and best practices
 
 # Containers
 brew "docker"                                   # Pack, ship and run any application as a lightweight container
 brew "docker-compose"                           # Isolated development environments using Docker
 brew "docker-machine"                           # Create Docker hosts locally and on cloud providers
+brew "helm"                                     # Kubernetes package manager
 brew "kubernetes-cli"                           # Kubernetes command-line interface
 brew "kubectl"                                  # k8s cli
 brew "stern"                                    # Tail multiple k8s pods
 brew "lazydocker"                               # The lazier way to manage everything docker
 
 tap "theurichde/go-aws-sso"
-brew "theurichde/go-aws-sso/go-aws-sso"         # Make working with AWS SSO on local machines easy
+cask "go-aws-sso"                               # Make working with AWS SSO on local machines easy
 
 tap 'derailed/k9s'
 brew "derailed/k9s/k9s"                         # Kubernetes CLI To Manage Your Clusters In Style!
 
 # Kafka
 brew "kafkacat"                                 # Generic command-line non-JVM Apache Kafka producer and consumer
+brew "kcat"                                     # Generic command-line non-JVM Apache Kafka producer and consumer
 
 # SonarScanner for SonarQube
 brew "sonar-scanner"                            # Launcher to analyze a project with SonarQube
 
 # Javascript
 brew "node"
+brew "nvm"                                      # Manage multiple active node.js versions
+brew "pnpm"                                     # Fast, disk space efficient package manager
+brew "yarn"                                     # JavaScript package manager
+
+# Databases
+brew "postgresql@14"                            # Object-relational database system
+brew "cypher-shell"                             # Neo4j command line shell
+
+# Development tooling
+brew "go"                                       # Go programming language
+brew "slackdump"                                # Archive Slack data to local files
+brew "structurizr"                              # Structurizr CLI for architecture diagrams

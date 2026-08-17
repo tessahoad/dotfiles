@@ -417,9 +417,9 @@ function certificate-java-install() {
             echo "Checking ${keystore}"
             local output=$(keytool -storepass ${defaultPassword} -keystore "${keystore}" -list -alias ${certAlias})
             if [[ ${output} =~ 'trustedCertEntry' ]]; then
-                msg-success "Certificate present"
+                echo "Certificate present"
             else
-                msg-error "Certificate missing -- run the following to install"
+                echo "Certificate missing -- run the following to install"
                 echo sudo keytool \
                     -storepass ${defaultPassword} \
                     -keystore "${keystore}" \
@@ -2403,3 +2403,4 @@ export PATH="/Applications/IntelliJ IDEA.app/Contents/MacOS:$PATH"
 
 
 export PATH="$HOME/.local/bin:$PATH"
+export PATH="/Applications/Firefox.app/Contents/MacOS:$PATH"

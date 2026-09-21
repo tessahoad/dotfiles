@@ -1,0 +1,121 @@
+# shellcheck shell=bash
+#
+# Shared configuration and helpers for the emcr-* scripts.
+# Sourced, not run directly.
+
+# Checkouts                                                                 {{{1
+# ==============================================================================
+
+EMCR_ROOT="${EMCR_ROOT:-$HOME/Developer/submissions/EvalManClaimRadar}"
+EMCR_CLAIM_RADAR_DIR="$EMCR_ROOT/triage-claim-radar"
+EMCR_MFE_UI_DIR="$EMCR_ROOT/triage-mfe-ui"
+EMCR_MD_API_DIR="$EMCR_ROOT/triage-md-web-api"
+
+# AWS                                                                       {{{1
+# ==============================================================================
+#
+# Values come from ~/.zshenv.secret. Missing ones are reported by the preflight.
+
+EMCR_EDS_PROFILE="${EMCR_EDS_PROFILE:-${SECRET_EMCR_EDS_PROFILE:-}}"
+EMCR_EDS_ACCOUNT="${EMCR_EDS_ACCOUNT:-${SECRET_ACC_SUBMISSIONS_EDS_NONPROD:-}}"
+EMCR_EDS_REGION="${EMCR_EDS_REGION:-eu-west-1}"
+
+EMCR_EM_PROFILE="${EMCR_EM_PROFILE:-${SECRET_EMCR_EM_PROFILE:-}}"
+EMCR_EM_ACCOUNT="${EMCR_EM_ACCOUNT:-${SECRET_ACC_EMCLOUD_NONPROD:-}}"
+EMCR_EM_REGION="${EMCR_EM_REGION:-us-east-2}"
+
+EMCR_JWT_PARAMETER="${EMCR_JWT_PARAMETER:-${SECRET_EMCR_JWT_PARAMETER:-}}"
+
+EMCR_EKS_CLUSTER="${EMCR_EKS_CLUSTER:-${SECRET_EMCR_EKS_CLUSTER:-}}"
+EMCR_TDDC_NAMESPACE="${EMCR_TDDC_NAMESPACE:-${SECRET_EMCR_TDDC_NAMESPACE:-}}"
+EMCR_TDDC_SERVICE="${EMCR_TDDC_SERVICE:-${SECRET_EMCR_TDDC_SERVICE:-}}"
+
+# Ports                                                                     {{{1
+# ==============================================================================
+
+EMCR_PORT_TDDC=8090
+EMCR_PORT_MD_API=8080
+EMCR_PORT_CONTAINER=3000
+EMCR_PORT_TOOLS=3001
+EMCR_PORT_BFF=5172
+EMCR_PORT_RADAR=4001
+
+EMCR_EMBEDDED_URL="http://localhost:$EMCR_PORT_CONTAINER"
+EMCR_STANDALONE_URL="http://localhost:$EMCR_PORT_RADAR"
+
+# Token claims                                                              {{{1
+# ==============================================================================
+#
+# Which manuscript the token points at. Override in the environment, e.g.
+# `EMCR_DOC_ID=2625 emcr-token --refresh --print url`.
+
+EMCR_JOURNAL="${EMCR_JOURNAL:-els_tardis_nonprod_01_uat}"
+EMCR_DOC_ID="${EMCR_DOC_ID:-2568}"
+EMCR_REVISION="${EMCR_REVISION:-0}"
+EMCR_PEOPLE_ID="${EMCR_PEOPLE_ID:-583}"
+EMCR_ROLE_FAMILY_ID="${EMCR_ROLE_FAMILY_ID:-3}"
+EMCR_ITHENTICATE_ID="${EMCR_ITHENTICATE_ID:-}"
+EMCR_TTL_MINUTES="${EMCR_TTL_MINUTES:-60}"
+
+EMCR_CACHE_DIR="${EMCR_CACHE_DIR:-$HOME/.cache/emcr}"
+
+# Java                                                                      {{{1
+# ==============================================================================
+
+EMCR_JAVA_VERSION="${EMCR_JAVA_VERSION:-17}"
+
+# Output helpers                                                            {{{1
+# ==============================================================================
+
+EMCR_RED='\033[0;31m'
+EMCR_GREEN='\033[0;32m'
+EMCR_YELLOW='\033[0;33m'
+EMCR_NO_COLOR='\033[0m'
+
+emcr_success() { printf "${EMCR_GREEN}✔ %s${EMCR_NO_COLOR}\n" "$1"; }
+emcr_warn()    { printf "${EMCR_YELLOW}▲ %s${EMCR_NO_COLOR}\n" "$1" >&2; }
+emcr_error()   { printf "${EMCR_RED}✘ %s${EMCR_NO_COLOR}\n" "$1" >&2; }
+emcr_info()    { printf "  %s\n" "$1"; }
+
+# Behaviour helpers                                                         {{{1
+# ==============================================================================
+
+# Drop credentials inherited from the launching shell or the tmux server.
+emcr_clear_aws_env() {
+    unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN \
+          AWS_SECURITY_TOKEN AWS_CREDENTIAL_EXPIRATION AWS_PROFILE \
+          AWS_DEFAULT_PROFILE AWS_REGION AWS_DEFAULT_REGION
+}
+
+# emcr_use_profile <profile> <region>
+emcr_use_profile() {
+    emcr_clear_aws_env
+    export AWS_PROFILE="$1"
+    export AWS_REGION="$2"
+    export AWS_DEFAULT_REGION="$2"
+}
+
+# Render an account id as its last four digits.
+emcr_mask_account() {
+    case "${1:-}" in
+        "")  printf '<unset>' ;;
+        ????*) printf '...%s' "${1#"${1%????}"}" ;;
+        *)   printf '%s' "$1" ;;
+    esac
+}
+
+emcr_port_listening() {
+    lsof -nP -iTCP:"$1" -sTCP:LISTEN >/dev/null 2>&1
+}
+
+emcr_port_label() {
+    case "$1" in
+        "$EMCR_PORT_TDDC")      echo "port-forward" ;;
+        "$EMCR_PORT_MD_API")    echo "api" ;;         
+        "$EMCR_PORT_CONTAINER") echo "container" ;;   
+        "$EMCR_PORT_TOOLS")     echo "tools" ;;       
+        "$EMCR_PORT_BFF")       echo "bff" ;;         
+        "$EMCR_PORT_RADAR")     echo "client" ;;      
+        *)                      echo "port $1" ;;
+    esac
+}

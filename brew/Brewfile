@@ -62,6 +62,8 @@ brew "q"                                        # CSV processor that lets you qu
 brew "ncdu"                                     # NCurses Disk Usage
 brew "ripgrep"                                  # Improved grepping
 brew "the_silver_searcher"                      # Code-search similar to ack
+brew "tmux"                                     # Terminal multiplexer
+brew "tmuxinator"                               # Manage complex tmux sessions from a YAML file
 brew "tree"                                     # Display directories as trees (with optional color/HTML output)
 brew "uvicorn"
 brew "watch"                                    # Executes a program periodically, showing output fullscreen

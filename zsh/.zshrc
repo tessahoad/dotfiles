@@ -96,6 +96,7 @@ alias reload-zsh-config="zsh -i"                                          # Relo
 alias zsh-startup='time  zsh -i -c exit'                                    # Display Zsh start-up time
 alias display-colours='msgcat --color=test'                                 # Display terminal colors
 alias list-ports='netstat -anv'                                             # List active ports
+alias mux='tmuxinator'                                                      # Short form, as tmuxinator's own docs use
 
 
 # IntelliJ and Pycharm                                                      {{{1

@@ -1,0 +1,160 @@
+#!/usr/bin/env bash
+#
+# Validate everything the local stack needs, before any tmux pane starts.
+# Run from tmuxinator's on_project_start hook.
+#
+# Reports problems and always returns 0.
+
+set -uo pipefail
+
+EMCR_BIN_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=emcr-common
+. "$EMCR_BIN_DIR/emcr-common"
+
+problems=0
+note_problem() { problems=$((problems + 1)); }
+
+echo "Local stack preflight"
+echo "====================="
+echo
+
+# Checkouts                                                                 {{{1
+
+echo "Checkouts ($EMCR_ROOT)"
+for directory in "$EMCR_CLAIM_RADAR_DIR" "$EMCR_MFE_UI_DIR" "$EMCR_MD_API_DIR"; do
+    if [ -d "$directory" ]; then
+        emcr_success "$(basename "$directory")"
+    else
+        emcr_error "missing: $directory"
+        note_problem
+    fi
+done
+echo
+
+# Tools                                                                     {{{1
+
+echo "Tools"
+missing_tools=""
+for command_name in aws kubectl mvn yarn python3 lsof curl; do
+    command -v "$command_name" >/dev/null || missing_tools="$missing_tools $command_name"
+done
+if [ -n "$missing_tools" ]; then
+    emcr_error "not on PATH:$missing_tools"
+    note_problem
+else
+    emcr_success "aws kubectl mvn yarn python3 lsof curl"
+fi
+
+if java_home="$(/usr/libexec/java_home -v "$EMCR_JAVA_VERSION" 2>/dev/null)"; then
+    emcr_success "JDK $EMCR_JAVA_VERSION at $java_home"
+else
+    emcr_error "no JDK $EMCR_JAVA_VERSION installed"
+    note_problem
+fi
+echo
+
+# Secrets                                                                   {{{1
+
+echo "Secrets (~/.zshenv.secret)"
+missing_secrets=""
+check_secret() {
+    [ -n "$2" ] || missing_secrets="$missing_secrets $1"
+}
+check_secret SECRET_EMCR_EDS_PROFILE    "$EMCR_EDS_PROFILE"
+check_secret SECRET_EMCR_EM_PROFILE     "$EMCR_EM_PROFILE"
+check_secret SECRET_EMCR_JWT_PARAMETER  "$EMCR_JWT_PARAMETER"
+check_secret SECRET_EMCR_EKS_CLUSTER    "$EMCR_EKS_CLUSTER"
+check_secret SECRET_EMCR_TDDC_NAMESPACE "$EMCR_TDDC_NAMESPACE"
+check_secret SECRET_EMCR_TDDC_SERVICE   "$EMCR_TDDC_SERVICE"
+if [ -n "$missing_secrets" ]; then
+    emcr_error "not set:$missing_secrets"
+    note_problem
+else
+    emcr_success "all set"
+fi
+echo
+
+# AWS                                                                       {{{1
+
+echo "AWS credentials"
+check_profile() {
+    local profile="$1" expected_account="$2" region="$3" account
+
+    if ! account="$(AWS_PROFILE="$profile" AWS_REGION="$region" \
+            aws sts get-caller-identity --query Account --output text 2>/dev/null)"; then
+        emcr_error "$profile: could not get caller identity"
+        note_problem
+        return 1
+    fi
+
+    if [ -z "$expected_account" ]; then
+        emcr_success "$profile -> $(emcr_mask_account "$account") ($region)"
+        emcr_warn "$profile: cannot verify the account, expected id not set in ~/.zshenv.secret"
+        return 0
+    fi
+
+    if [ "$account" != "$expected_account" ]; then
+        emcr_error "$profile: resolved to $(emcr_mask_account "$account"), expected $(emcr_mask_account "$expected_account")"
+        note_problem
+        return 1
+    fi
+
+    emcr_success "$profile -> $(emcr_mask_account "$account") ($region)"
+}
+
+# Subshell, with inherited credentials cleared.
+( emcr_clear_aws_env; check_profile "$EMCR_EDS_PROFILE" "$EMCR_EDS_ACCOUNT" "$EMCR_EDS_REGION" ) || note_problem
+( emcr_clear_aws_env; check_profile "$EMCR_EM_PROFILE"  "$EMCR_EM_ACCOUNT"  "$EMCR_EM_REGION" )  || note_problem
+
+if [ -n "${AWS_ACCESS_KEY_ID:-}" ]; then
+    emcr_warn "AWS_ACCESS_KEY_ID is set in this shell (from \`assume\`?)."
+    emcr_warn "Service panes clear it, so they are unaffected."
+fi
+echo
+
+# Kubernetes                                                                {{{1
+
+echo "Kubernetes"
+if ( emcr_clear_aws_env
+     export AWS_PROFILE="$EMCR_EDS_PROFILE" AWS_REGION="$EMCR_EDS_REGION"
+     aws eks update-kubeconfig --name "$EMCR_EKS_CLUSTER" --region "$EMCR_EDS_REGION" >/dev/null 2>&1 ); then
+    emcr_success "kubeconfig updated for $EMCR_EKS_CLUSTER"
+else
+    emcr_error "could not update kubeconfig for $EMCR_EKS_CLUSTER"
+    note_problem
+fi
+echo
+
+# Token                                                                     {{{1
+
+echo "Report token"
+if ( "$EMCR_BIN_DIR/emcr-token" --print token >/dev/null 2>&1 ); then
+    emcr_success "minted for $EMCR_JOURNAL doc $EMCR_DOC_ID rev $EMCR_REVISION (expires in ${EMCR_TTL_MINUTES}m)"
+else
+    emcr_error "could not mint a token - see: emcr-token"
+    note_problem
+fi
+echo
+
+# Ports already in use                                                      {{{1
+
+occupied=""
+for port in "$EMCR_PORT_TDDC" "$EMCR_PORT_MD_API" "$EMCR_PORT_CONTAINER" \
+            "$EMCR_PORT_TOOLS" "$EMCR_PORT_BFF" "$EMCR_PORT_RADAR"; do
+    emcr_port_listening "$port" && occupied="$occupied $port"
+done
+if [ -n "$occupied" ]; then
+    emcr_warn "already listening:$occupied"
+    emcr_warn "those panes will fail with 'address already in use' - run emcr-status"
+    echo
+fi
+
+# Summary                                                                   {{{1
+
+if [ "$problems" -eq 0 ]; then
+    emcr_success "Preflight clean."
+else
+    emcr_error "Preflight found $problems problem(s) - the session will still start."
+fi
+
+exit 0

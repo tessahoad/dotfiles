@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+#
+# Wait until every given TCP port is accepting connections.
+#
+# Usage: emcr-wait-for [--timeout SECONDS] PORT [PORT ...]
+
+set -euo pipefail
+
+EMCR_BIN_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=emcr-common
+. "$EMCR_BIN_DIR/emcr-common"
+
+timeout=180
+if [ "${1:-}" = "--timeout" ]; then
+    timeout="${2:?--timeout needs seconds}"
+    shift 2
+fi
+[ $# -gt 0 ] || { emcr_error "Usage: emcr-wait-for [--timeout SECONDS] PORT [PORT ...]"; exit 2; }
+
+printf 'Waiting for %s (up to %ss)\n' "$*" "$timeout"
+
+waited=0
+for port in "$@"; do
+    while ! emcr_port_listening "$port"; do
+        if [ "$waited" -ge "$timeout" ]; then
+            emcr_error "Timed out waiting for $(emcr_port_label "$port") on :$port"
+            exit 1
+        fi
+        sleep 1
+        waited=$((waited + 1))
+    done
+    emcr_success "$(emcr_port_label "$port") listening on :$port"
+done

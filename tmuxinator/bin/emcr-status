@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+#
+# Show which of the local stack's ports are currently listening, and who owns them.
+
+set -uo pipefail
+
+EMCR_BIN_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=emcr-common
+. "$EMCR_BIN_DIR/emcr-common"
+
+for port in "$EMCR_PORT_TDDC" "$EMCR_PORT_MD_API" "$EMCR_PORT_CONTAINER" \
+            "$EMCR_PORT_TOOLS" "$EMCR_PORT_BFF" "$EMCR_PORT_RADAR"; do
+    label="$(emcr_port_label "$port")"
+    if emcr_port_listening "$port"; then
+        owner="$(lsof -nP -iTCP:"$port" -sTCP:LISTEN -Fc 2>/dev/null | sed -n 's/^c//p' | head -1)"
+        printf "${EMCR_GREEN}✔${EMCR_NO_COLOR} %-5s %-22s %s\n" ":$port" "$label" "${owner:-?}"
+    else
+        printf "${EMCR_RED}✘${EMCR_NO_COLOR} %-5s %-22s %s\n" ":$port" "$label" "not listening"
+    fi
+done

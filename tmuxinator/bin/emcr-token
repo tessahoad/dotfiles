@@ -1,0 +1,129 @@
+#!/usr/bin/env bash
+#
+# Mint a report token for local development.
+#
+# Fetches the signing key from Parameter Store, signs a token with
+# emcr-token.py, and caches it.
+#
+# Usage:
+#   emcr-token                      mint (or reuse a cached, unexpired) token
+#   emcr-token --print token        just the URL-encoded token (for a URL)
+#   emcr-token --print raw          the decoded token
+#   emcr-token --print url          the full URL
+#   emcr-token --refresh            force a new token
+#   emcr-token --base-url URL       override the URL base (default localhost:3000)
+#
+# Claims are set by the EMCR_* variables in emcr-common, e.g.
+#   EMCR_DOC_ID=2625 emcr-token --refresh --print url
+
+set -euo pipefail
+
+# Siblings live alongside this script.
+EMCR_BIN_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=emcr-common
+. "$EMCR_BIN_DIR/emcr-common"
+
+print_what="all"
+refresh=false
+base_url="$EMCR_EMBEDDED_URL"
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --print)    print_what="${2:?--print needs token|raw|url}"; shift 2 ;;
+        --refresh)  refresh=true; shift ;;
+        --base-url) base_url="${2:?--base-url needs a URL}"; shift 2 ;;
+        -h|--help)  sed -n '3,18p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        *)          emcr_error "Unknown argument: $1"; exit 2 ;;
+    esac
+done
+
+case "$print_what" in
+    all|token|raw|url) ;;
+    *) emcr_error "--print must be token, raw or url"; exit 2 ;;
+esac
+
+token_file="$EMCR_CACHE_DIR/token"
+meta_file="$EMCR_CACHE_DIR/token.meta"
+
+# Cache key: any change to the claims forces a re-mint.
+claims_key="$EMCR_JOURNAL|$EMCR_DOC_ID|$EMCR_REVISION|$EMCR_PEOPLE_ID|$EMCR_ROLE_FAMILY_ID|$EMCR_ITHENTICATE_ID"
+
+cache_is_usable() {
+    [ "$refresh" = false ] || return 1
+    [ -s "$token_file" ] && [ -s "$meta_file" ] || return 1
+
+    local cached_expiry cached_claims now
+    cached_expiry="$(sed -n '1p' "$meta_file")"
+    cached_claims="$(sed -n '2p' "$meta_file")"
+    now="$(date +%s)"
+
+    [ "$cached_claims" = "$claims_key" ] || return 1
+    # 5 minute safety margin
+    [ "$cached_expiry" -gt "$((now + 300))" ] 2>/dev/null || return 1
+}
+
+mint() {
+    command -v aws >/dev/null     || { emcr_error "aws CLI is required"; exit 1; }
+    command -v python3 >/dev/null || { emcr_error "python3 is required"; exit 1; }
+
+    emcr_use_profile "$EMCR_EM_PROFILE" "$EMCR_EM_REGION"
+
+    local key_file
+    key_file="$(mktemp)"
+    chmod 600 "$key_file"
+    # shellcheck disable=SC2064
+    trap "rm -f '$key_file'" EXIT
+
+    if ! aws ssm get-parameter \
+            --name "$EMCR_JWT_PARAMETER" \
+            --with-decryption \
+            --query 'Parameter.Value' \
+            --output text >"$key_file"; then
+        emcr_error "Could not read $EMCR_JWT_PARAMETER"
+        emcr_info  "Profile $EMCR_EM_PROFILE, region $EMCR_EM_REGION (account $(emcr_mask_account "$EMCR_EM_ACCOUNT"))"
+        exit 1
+    fi
+    [ -s "$key_file" ] || { emcr_error "Parameter Store returned no value"; exit 1; }
+
+    local output minted
+    output="$(python3 "$EMCR_BIN_DIR/emcr-token.py" \
+        --private-key-file "$key_file" \
+        --journal "$EMCR_JOURNAL" \
+        --doc-id "$EMCR_DOC_ID" \
+        --revision "$EMCR_REVISION" \
+        --people-id "$EMCR_PEOPLE_ID" \
+        --role-family-id "$EMCR_ROLE_FAMILY_ID" \
+        --ithenticate-id "$EMCR_ITHENTICATE_ID" \
+        --ttl-minutes "$EMCR_TTL_MINUTES" \
+        --base-url "$base_url")"
+
+    minted="$(printf '%s\n' "$output" | awk -F': ' '/^Path token \(URL-encoded\)/ {print $2}')"
+    [ -n "$minted" ] || { emcr_error "Could not parse a token out of emcr-token.py"; exit 1; }
+
+    mkdir -p "$EMCR_CACHE_DIR"
+    ( umask 077; printf '%s' "$minted" >"$token_file" )
+    ( umask 077; printf '%s\n%s\n' "$(( $(date +%s) + EMCR_TTL_MINUTES * 60 ))" "$claims_key" >"$meta_file" )
+}
+
+if ! cache_is_usable; then
+    mint
+fi
+
+token="$(cat "$token_file")"
+url="$base_url/?token=$token"
+
+case "$print_what" in
+    token) printf '%s\n' "$token" ;;
+    # Percent-decoded.
+    raw)   python3 -c 'import sys,urllib.parse; print(urllib.parse.unquote(sys.argv[1]))' "$token" ;;
+    url)   printf '%s\n' "$url" ;;
+    all)
+        expires_at="$(sed -n '1p' "$meta_file")"
+        emcr_success "Token for $EMCR_JOURNAL doc $EMCR_DOC_ID rev $EMCR_REVISION"
+        emcr_info "expires $(date -r "$expires_at" '+%H:%M:%S')"
+        echo
+        emcr_info "token: $token"
+        echo
+        emcr_info "url:   $url"
+        ;;
+esac

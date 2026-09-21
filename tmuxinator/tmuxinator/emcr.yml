@@ -1,0 +1,64 @@
+# mux start emcr [doc=NNNN]   start; mux stop emcr first to change doc
+# mux stop emcr               kill it
+# emcr-status                 which ports are up
+# emcr-token --refresh        new token, they expire after 60m
+# mux debug emcr              print the script instead of running it
+
+name: emcr
+root: ~/Developer/submissions/EvalManClaimRadar
+
+on_project_start: mkdir -p ~/.cache/emcr && EMCR_DOC_ID=<%= @settings["doc"] %> emcr-preflight 2>&1 | tee ~/.cache/emcr/preflight.log
+
+startup_window: token
+
+pre_window: export EMCR_DOC_ID=<%= @settings["doc"] %>
+
+windows:
+  - aws:
+      panes:
+        - preflight:
+            - clear && cat ~/.cache/emcr/preflight.log
+
+  - md-api:
+      layout: even-vertical
+      panes:
+        - tddc:
+            - . emcr-common
+            - emcr_use_profile "$EMCR_EDS_PROFILE" "$EMCR_EDS_REGION"
+            - kubectl port-forward -n "$EMCR_TDDC_NAMESPACE" "$EMCR_TDDC_SERVICE" "$EMCR_PORT_TDDC:8080"
+        - api:
+            - . emcr-common
+            - emcr_use_profile "$EMCR_EDS_PROFILE" "$EMCR_EDS_REGION"
+            - export JAVA_HOME="$(/usr/libexec/java_home -v $EMCR_JAVA_VERSION)"
+            - cd "$EMCR_MD_API_DIR"
+            - mvn spring-boot:run -Dspring-boot.run.arguments="--environment=nonprod --tddc.url=http://localhost:$EMCR_PORT_TDDC --feature.claim-radar.enabled=true --server.port=$EMCR_PORT_MD_API"
+
+  - mfe-ui:
+      layout: even-vertical
+      panes:
+        - container:
+            - . emcr-common
+            - cd "$EMCR_MFE_UI_DIR"
+            - yarn --cwd container local
+        - tools:
+            - . emcr-common
+            - cd "$EMCR_MFE_UI_DIR"
+            - yarn --cwd tools/triage local
+
+  - radar:
+      layout: even-vertical
+      panes:
+        - bff:
+            - . emcr-common
+            - emcr_use_profile "$EMCR_EDS_PROFILE" "$EMCR_EDS_REGION"
+            - cd "$EMCR_CLAIM_RADAR_DIR"
+            - yarn dev:server
+        - client:
+            - . emcr-common
+            - cd "$EMCR_CLAIM_RADAR_DIR"
+            - yarn dev:client
+
+  - token:
+      panes:
+        - open:
+            - emcr-open

@@ -1,0 +1,54 @@
+# mux start emcr-standalone [doc=NNNN]   start; stop first to change doc
+# mux stop emcr-standalone               kill it
+# emcr-status                            which ports are up
+# emcr-token --refresh                   new token; restart the client pane
+# mux debug emcr-standalone              print the script instead of running it
+
+name: emcr-standalone
+root: ~/Developer/submissions/EvalManClaimRadar
+
+on_project_start: mkdir -p ~/.cache/emcr && EMCR_DOC_ID=<%= @settings["doc"] %> emcr-preflight 2>&1 | tee ~/.cache/emcr/preflight.log
+
+startup_window: token
+
+pre_window: export EMCR_DOC_ID=<%= @settings["doc"] %>
+
+windows:
+  - aws:
+      panes:
+        - preflight:
+            - clear && cat ~/.cache/emcr/preflight.log
+
+  - md-api:
+      layout: even-vertical
+      panes:
+        - tddc:
+            - . emcr-common
+            - emcr_use_profile "$EMCR_EDS_PROFILE" "$EMCR_EDS_REGION"
+            - kubectl port-forward -n "$EMCR_TDDC_NAMESPACE" "$EMCR_TDDC_SERVICE" "$EMCR_PORT_TDDC:8080"
+        - api:
+            - . emcr-common
+            - emcr_use_profile "$EMCR_EDS_PROFILE" "$EMCR_EDS_REGION"
+            - export JAVA_HOME="$(/usr/libexec/java_home -v $EMCR_JAVA_VERSION)"
+            - cd "$EMCR_MD_API_DIR"
+            - mvn spring-boot:run -Dspring-boot.run.arguments="--environment=nonprod --tddc.url=http://localhost:$EMCR_PORT_TDDC --feature.claim-radar.enabled=true --server.port=$EMCR_PORT_MD_API"
+
+  - radar:
+      layout: even-vertical
+      panes:
+        - bff:
+            - . emcr-common
+            - emcr_use_profile "$EMCR_EDS_PROFILE" "$EMCR_EDS_REGION"
+            - cd "$EMCR_CLAIM_RADAR_DIR"
+            - yarn dev:server
+        - client:
+            - . emcr-common
+            - cd "$EMCR_CLAIM_RADAR_DIR"
+            - export DEV_MANUSCRIPT_TOKEN="$(emcr-token --print raw)"
+            - '[ -n "$DEV_MANUSCRIPT_TOKEN" ] || emcr_warn "No token minted"'
+            - yarn dev:client
+
+  - token:
+      panes:
+        - open:
+            - emcr-open --standalone

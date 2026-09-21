@@ -14,15 +14,30 @@ setopt EXTENDED_GLOB
 FILES=(
     "git/.gitconfig"
     "git/.githooks"
+    "tmux/.tmux.conf"
     "zsh/.zshenv"
     "zsh/.zshenv.secret"
     "zsh/.zshrc"
     "q/.qrc"
 )
 
+# Directories to link to in $HOME/.config
+CONFIG_DIRS=(
+    "tmuxinator/tmuxinator"
+)
+
+# Scripts to link to in $HOME/bin, which is already on $PATH
+BIN_DIRS=(
+    "tmuxinator/bin"
+)
+
 # Files to link to in $HOME/.copilot
 COPILOT_DIRS=(
     "copilot/hooks"
+)
+
+COPILOT_SKILLS=(
+    "copilot/skills/codegraph-exploration"
 )
 
 # Files to link to in $HOME/.claude
@@ -32,8 +47,16 @@ CLAUDE_DIRS=(
     "claude/agents"
 )
 
+CLAUDE_SKILLS=(
+    "claude/skills/codegraph-exploration"
+)
+
 CODEX_DIRS=(
     "codex/hooks.json"
+)
+
+CODEX_SKILLS=(
+    "codex/skills/codegraph-exploration"
 )
 
 RED='\033[0;31m'
@@ -125,6 +148,17 @@ create-links-for-files $HOME/.config  "$CONFIG_DIRS[@]"
 create-links-for-files $HOME/.copilot "$COPILOT_DIRS[@]"
 create-links-for-files $HOME/.claude  "$CLAUDE_DIRS[@]"
 create-links-for-files $HOME/.codex   "$CODEX_DIRS[@]"
+
+mkdir -p "$HOME/.copilot/skills" "$HOME/.claude/skills" "$HOME/.codex/skills"
+create-links-for-files "$HOME/.copilot/skills" "$COPILOT_SKILLS[@]"
+create-links-for-files "$HOME/.claude/skills" "$CLAUDE_SKILLS[@]"
+create-links-for-files "$HOME/.codex/skills" "$CODEX_SKILLS[@]"
+
+mkdir -p $HOME/bin
+for binDir in "$BIN_DIRS[@]"
+do
+    create-links-for-files-at-path $HOME/bin $binDir
+done
 
 
 create-links-for-files-at-path ~/Developer/tessahoad     git/home-config

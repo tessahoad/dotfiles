@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+#
+# Wait for the stack to come up, mint a token, and open it in the browser.
+#
+# Usage: emcr-open [--standalone] [--no-open]
+#
+#   (default)      wait for the full stack, open :3000
+#   --standalone   wait for the reduced stack, open :4001
+#   --no-open      print the URL but don't launch a browser
+
+set -euo pipefail
+
+EMCR_BIN_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=emcr-common
+. "$EMCR_BIN_DIR/emcr-common"
+
+standalone=false
+launch=true
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --standalone) standalone=true; shift ;;
+        --no-open)    launch=false; shift ;;
+        -h|--help)    sed -n '3,11p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        *)            emcr_error "Unknown argument: $1"; exit 2 ;;
+    esac
+done
+
+if [ "$standalone" = true ]; then
+    base_url="$EMCR_STANDALONE_URL"
+    ports="$EMCR_PORT_TDDC $EMCR_PORT_MD_API $EMCR_PORT_BFF $EMCR_PORT_RADAR"
+else
+    base_url="$EMCR_EMBEDDED_URL"
+    ports="$EMCR_PORT_TDDC $EMCR_PORT_MD_API $EMCR_PORT_CONTAINER $EMCR_PORT_TOOLS $EMCR_PORT_BFF $EMCR_PORT_RADAR"
+fi
+
+# shellcheck disable=SC2086
+"$EMCR_BIN_DIR/emcr-wait-for" $ports
+echo
+
+if [ "$standalone" = true ]; then
+    url="$base_url"
+    emcr_success "Standalone at $url"
+    emcr_info "token already exported as DEV_MANUSCRIPT_TOKEN"
+else
+    "$EMCR_BIN_DIR/emcr-token" --base-url "$base_url"
+    url="$("$EMCR_BIN_DIR/emcr-token" --print url --base-url "$base_url")"
+fi
+
+echo
+if [ "$launch" = true ]; then
+    emcr_success "Opening browser"
+    open "$url"
+else
+    printf '%s\n' "$url"
+fi
+
+echo
+emcr_info "Tokens last $EMCR_TTL_MINUTES minutes. To mint another:"
+if [ "$standalone" = true ]; then
+    emcr_info "  emcr-token --refresh   then restart the client pane (window 2)"
+else
+    emcr_info "  emcr-token --refresh --print url"
+fi

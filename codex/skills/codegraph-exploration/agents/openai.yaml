@@ -1,0 +1,4 @@
+interface:
+  display_name: "CodeGraph Exploration"
+  short_description: "Explore indexed code with CodeGraph before text search."
+  default_prompt: "Explore this repository with CodeGraph and summarize the relevant symbols, call paths, and source."

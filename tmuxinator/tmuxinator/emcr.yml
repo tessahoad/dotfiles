@@ -39,11 +39,11 @@ windows:
         - container:
             - . emcr-common
             - cd "$EMCR_MFE_UI_DIR"
-            - yarn --cwd container local
+            - yarn --cwd container localApi
         - tools:
             - . emcr-common
             - cd "$EMCR_MFE_UI_DIR"
-            - yarn --cwd tools/triage local
+            - yarn --cwd tools/triage localApi
 
   - radar:
       layout: even-vertical

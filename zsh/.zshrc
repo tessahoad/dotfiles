@@ -2183,7 +2183,7 @@ function rr-error-queue-depth-live() {
     aws-recs-login live > /dev/null
 
     aws sqs get-queue-attributes \
-        --queue-url https://sqs.us-east-1.amazonaws.com/589287149623/recs_rev_recommender_lambda_errors_dlq \
+        --queue-url https://sqs.us-east-1.amazonaws.com/$SECRET_ACC_RECS_PROD/recs_rev_recommender_lambda_errors_dlq \
         --attribute-names All \
         | jq -r '.Attributes.ApproximateNumberOfMessages'
 }

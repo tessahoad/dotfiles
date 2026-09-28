@@ -102,21 +102,21 @@ alias mux='tmuxinator'                                                      # Sh
 # IntelliJ and Pycharm                                                      {{{1
 # ==============================================================================
 
-# function _launch-jetbrains-tool() {
-#     local cmd=$1
-#     shift
-#     local args=$@
-#
-#     if [[ $# -eq 0 ]] ; then
-#         args='.'
-#     fi
-#
-#     zsh -c "${cmd} ${args} > /dev/null 2>&1 &"
-# }
-# compdef _files _launch-jetbrains-tool
-#
-# alias charm='_launch-jetbrains-tool pycharm'                                # Launch PyCharm
-# alias idea='_launch-jetbrains-tool idea'                                    # Launch IntelliJ
+function _launch-jetbrains-tool() {
+    local cmd=$1
+    shift
+    local args=$@
+
+    if [[ $# -eq 0 ]] ; then
+        args='.'
+    fi
+
+    zsh -c "${cmd} ${args} > /dev/null 2>&1 &"
+}
+compdef _files _launch-jetbrains-tool
+
+alias charm='_launch-jetbrains-tool pycharm'                                # Launch PyCharm
+alias idea='_launch-jetbrains-tool idea'                                    # Launch IntelliJ
 
 # General functions                                                         {{{1
 # ==============================================================================
@@ -2401,7 +2401,7 @@ export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
 [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
 export PATH="/Applications/IntelliJ IDEA.app/Contents/MacOS:$PATH"
-
+export PATH="/Applications/PyCharm.app/Contents/MacOS:$PATH"
 
 export PATH="$HOME/.local/bin:$PATH"
 export PATH="/Applications/Firefox.app/Contents/MacOS:$PATH"

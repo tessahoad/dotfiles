@@ -81,4 +81,5 @@ export COLOR_GREEN='\033[0;32m'
 export COLOR_YELLOW='\033[0;33m'
 export COLOR_NONE='\033[0m'
 export COLOR_CLEAR_LINE='\r\033[K'
+export CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1
 alias assume=". assume"

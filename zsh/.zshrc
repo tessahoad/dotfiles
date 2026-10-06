@@ -98,6 +98,100 @@ alias display-colours='msgcat --color=test'                                 # Di
 alias list-ports='netstat -anv'                                             # List active ports
 alias mux='tmuxinator'                                                      # Short form, as tmuxinator's own docs use
 
+# Claude and Codex                                                          {{{1
+# ==============================================================================
+
+function _cerebus-launch() (
+    unsetopt XTRACE VERBOSE
+    local client=$1 model=${CEREBUS_MODEL:-} variable
+    shift
+    local -a cli_args=()
+
+    while (( $# )); do
+        case "$1" in
+            --model|-m)
+                if (( $# < 2 )) || [[ -z "$2" || "$2" == -* ]]; then
+                    print -u2 -- "$client-cerebus: --model requires a model ID"
+                    return 2
+                fi
+                model=$2
+                shift 2
+                ;;
+            --model=*)
+                model=${1#--model=}
+                if [[ -z "$model" ]]; then
+                    print -u2 -- "$client-cerebus: --model requires a model ID"
+                    return 2
+                fi
+                shift
+                ;;
+            --)
+                cli_args+=("$@")
+                break
+                ;;
+            *)
+                cli_args+=("$1")
+                shift
+                ;;
+        esac
+    done
+
+    for variable in CEREBUS_API_KEY CEREBUS_BASE_URL CEREBUS_PROVIDER; do
+        if [[ -z "${(P)variable}" ]]; then
+            print -u2 -- "$client-cerebus: $variable is missing; check ~/.zshenv.secret"
+            return 1
+        fi
+    done
+    if [[ -z "$model" ]]; then
+        print -u2 -- "$client-cerebus: set CEREBUS_MODEL in ~/.zshenv.secret or supply --model"
+        return 1
+    fi
+
+    if [[ "$client" == claude ]]; then
+        local binary=${commands[claude]:-}
+        if [[ -z "$binary" ]]; then
+            print -u2 -- 'claude-cerebus: claude is not installed or is not on PATH'
+            return 127
+        fi
+        unset ANTHROPIC_API_KEY
+        export ANTHROPIC_BASE_URL="${CEREBUS_BASE_URL%/}"
+        export ANTHROPIC_AUTH_TOKEN='not-used'
+        export ANTHROPIC_CUSTOM_HEADERS="x-portkey-api-key: ${CEREBUS_API_KEY}
+x-portkey-provider: ${CEREBUS_PROVIDER}"
+        export ANTHROPIC_CUSTOM_MODEL_OPTION="$model"
+        export ANTHROPIC_CUSTOM_MODEL_OPTION_NAME="Cerebus: $model"
+        export ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION='Model through the Cerebus shared integration'
+        export CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS=1
+        command "$binary" --model "$model" "${cli_args[@]}"
+    else
+        local binary=${commands[codex]:-}
+        if [[ -z "$binary" ]]; then
+            print -u2 -- 'codex-cerebus: codex is not installed or is not on PATH'
+            return 127
+        fi
+        unset CODEX_HOME
+        export CEREBUS_API_KEY
+        command "$binary" \
+            -c 'model_provider="cerebus"' \
+            -c 'model_providers.cerebus.name="Cerebus"' \
+            -c "model_providers.cerebus.base_url=${CEREBUS_BASE_URL%/}/v1" \
+            -c 'model_providers.cerebus.wire_api="responses"' \
+            -c 'model_providers.cerebus.requires_openai_auth=false' \
+            -c 'model_providers.cerebus.supports_websockets=false' \
+            -c "model_providers.cerebus.http_headers.x-portkey-provider=$CEREBUS_PROVIDER" \
+            -c 'model_providers.cerebus.env_http_headers.x-portkey-api-key="CEREBUS_API_KEY"' \
+            -c 'model_reasoning_effort="low"' \
+            -c 'model_reasoning_summary="none"' \
+            -c "model_context_window=${CEREBUS_CODEX_CONTEXT_WINDOW:-131072}" \
+            -c "model_auto_compact_token_limit=${CEREBUS_CODEX_COMPACT_LIMIT:-98304}" \
+            -c "agents.default_subagent_model=$model" \
+            --model "$model" "${cli_args[@]}"
+    fi
+)
+
+function claude-cerebus() { _cerebus-launch claude "$@"; }
+function codex-cerebus() { _cerebus-launch codex "$@"; }
+
 
 # IntelliJ and Pycharm                                                      {{{1
 # ==============================================================================

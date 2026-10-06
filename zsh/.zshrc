@@ -162,6 +162,7 @@ x-portkey-provider: ${CEREBUS_PROVIDER}"
         export ANTHROPIC_CUSTOM_MODEL_OPTION_NAME="Cerebus: $model"
         export ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION='Model through the Cerebus shared integration'
         export CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS=1
+        export CLAUDE_CODE_MAX_CONTEXT_TOKENS=${CEREBUS_CLAUDE_CONTEXT_WINDOW:-200000}
         command "$binary" --model "$model" "${cli_args[@]}"
     else
         local binary=${commands[codex]:-}

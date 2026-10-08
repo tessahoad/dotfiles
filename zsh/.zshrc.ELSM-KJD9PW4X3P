@@ -1,0 +1,61 @@
+# vim:fdm=marker
+
+# Daily update                                                              {{{1
+# ==============================================================================
+
+# Bring one git checkout up to date: fetch, then fast-forward if the tree is clean.
+# Never merges or rebases; repos that need attention are reported instead.
+function repo-update() {
+    local repo=$1 name=${1#$HOME/Developer/}
+    local green=$'\e[0;32m' red=$'\e[0;31m' yellow=$'\e[0;33m' none=$'\e[0m'
+    local branch before after
+
+    if ! GIT_TERMINAL_PROMPT=0 git -C "$repo" fetch --all --prune --quiet 2>/dev/null; then
+        printf "${red}✘${none} %-60s fetch failed\n" "$name"
+        return
+    fi
+
+    branch=$(git -C "$repo" symbolic-ref --short -q HEAD)
+    if [[ -z "$branch" ]]; then
+        printf "${yellow}–${none} %-60s detached HEAD\n" "$name"
+        return
+    fi
+
+    if ! git -C "$repo" rev-parse --abbrev-ref '@{u}' >/dev/null 2>&1; then
+        printf "${yellow}–${none} %-60s %s has no upstream\n" "$name" "$branch"
+        return
+    fi
+
+    if [[ -n "$(git -C "$repo" status --porcelain --untracked-files=no)" ]]; then
+        printf "${yellow}–${none} %-60s %s has local changes, fetched only\n" "$name" "$branch"
+        return
+    fi
+
+    before=$(git -C "$repo" rev-parse HEAD)
+    if ! git -C "$repo" merge --ff-only --quiet '@{u}' >/dev/null 2>&1; then
+        printf "${yellow}–${none} %-60s %s has diverged from upstream\n" "$name" "$branch"
+        return
+    fi
+    after=$(git -C "$repo" rev-parse HEAD)
+
+    if [[ "$before" == "$after" ]]; then
+        printf "${green}✔${none} %-60s %s up to date\n" "$name" "$branch"
+    else
+        printf "${green}↑${none} %-60s %s +%s commits\n" "$name" "$branch" \
+            "$(git -C "$repo" rev-list --count "$before..$after")"
+    fi
+}
+
+# Update every git checkout under ~/Developer (or the given roots), 8 at a time
+function repos-update() {
+    local -a roots=("${@:-$HOME/Developer}")
+    local -a repos=(${(f)"$(find "${roots[@]}" -maxdepth 3 -name .git -prune -print0 | xargs -0 -n1 dirname | sort)"})
+
+    GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh} -o BatchMode=yes -o ConnectTimeout=15" env_parallel -j8 repo-update ::: "${repos[@]}"
+}
+
+# Start the daily tmuxinator session and attach to it
+function daily-update() {
+    tmuxinator start daily --no-attach
+    tmux attach -t daily
+}

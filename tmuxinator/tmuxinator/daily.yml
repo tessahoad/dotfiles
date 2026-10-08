@@ -1,0 +1,11 @@
+# daily-update                start the daily session and attach
+# mux start daily             same, without the zsh wrapper
+# mux stop daily              kill it
+
+name: daily
+
+root: ~/Developer
+
+windows:
+  - repos:
+      - clear && repos-update; echo; echo "Done. Press enter to close this window."; read

@@ -33,6 +33,11 @@ function source-or-warn() {
     fi
 }
 
+# Machine name, used to pick the machine-specific ~/.zshrc.<name>
+COMPUTER_NAME=""
+if-darwin && COMPUTER_NAME="$(scutil --get ComputerName 2> /dev/null || true)"
+export COMPUTER_NAME
+
 # Included scripts                                                          {{{1
 # ==============================================================================
 

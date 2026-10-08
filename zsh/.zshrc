@@ -2500,3 +2500,7 @@ export PATH="/Applications/PyCharm.app/Contents/MacOS:$PATH"
 
 export PATH="$HOME/.local/bin:$PATH"
 export PATH="/Applications/Firefox.app/Contents/MacOS:$PATH"
+
+if [[ -n "${COMPUTER_NAME}" ]]; then
+    source-if-exists "$HOME/.zshrc.${COMPUTER_NAME}"
+fi

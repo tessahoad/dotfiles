@@ -10,6 +10,8 @@ setopt EXTENDED_GLOB
 # Constants                                                                 {{{1
 # ==============================================================================
 
+computerName=$(scutil --get ComputerName)
+
 # Files to link to in $HOME
 FILES=(
     "git/.gitconfig"
@@ -18,6 +20,7 @@ FILES=(
     "zsh/.zshenv"
     "zsh/.zshenv.secret"
     "zsh/.zshrc"
+    "zsh/.zshrc.${computerName}"
     "q/.qrc"
 )
 

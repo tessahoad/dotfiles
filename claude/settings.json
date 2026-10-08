@@ -3,7 +3,17 @@
     "superpowers@claude-plugins-official": true
   },
   "effortLevel": "low",
-"hooks": {
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "codegraph prompt-hook"
+          }
+        ]
+      }
+    ],
     "Notification": [
       {
         "matcher": "",
@@ -14,6 +24,11 @@
           }
         ]
       }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "mcp__codegraph__*"
     ]
   }
 }

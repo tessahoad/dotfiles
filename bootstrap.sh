@@ -34,6 +34,7 @@ BIN_DIRS=(
 # Files to link to in $HOME/.copilot
 COPILOT_DIRS=(
     "copilot/hooks"
+    "copilot/copilot-instructions.md"
 )
 
 COPILOT_SKILLS=(
@@ -43,6 +44,7 @@ COPILOT_SKILLS=(
 # Files to link to in $HOME/.claude
 CLAUDE_DIRS=(
     "claude/settings.json"
+    "claude/CLAUDE.md"
     "claude/claude-notify.sh"
     "claude/agents"
 )
@@ -53,6 +55,7 @@ CLAUDE_SKILLS=(
 
 CODEX_DIRS=(
     "codex/hooks.json"
+    "codex/AGENTS.md"
 )
 
 CODEX_SKILLS=(
@@ -101,7 +104,9 @@ function create-link() {
             msg_error "Error:   $homePath -> $linkTarget exists (should point to $localPath)"
         fi
     elif [[ -e "$homePath" ]]; then
-        msg_error "Error:   $homePath cannot be created because a file exists at that path"
+        mv "$homePath" "$homePath.bak"
+        ln -s "$localPath" "$homePath"
+        msg_success "Created: $homePath -> $localPath (existing file moved to $homePath.bak)"
     else
         ln -s "$localPath" "$homePath"
         msg_success "Created: $homePath -> $localPath"

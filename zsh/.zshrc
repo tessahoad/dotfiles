@@ -1328,69 +1328,6 @@ function aws-recs-login() {
     fi
 }
 
-function aws-shared-search-login() {
-if [[ $# -ne 1 ]]; then
-        echo "Usage: aws-shared-search-login (dev|cert|staging|live)"
-    else
-        declare env=$1
-        case $env in
-            "dev"|"cert"|"staging")
-                aws-role $SECRET_ACC_SHARED_SEARCH_DEV EnterpriseAdmin shared-search-dev-enterprise-admin
-                ;;
-            "live")
-                aws-role $SECRET_ACC_SHARED_SEARCH_PROD Developer shared-search-live-developer
-                ;;
-            *)
-                echo "Unknown env"
-        esac
-    fi
-}
-
-alias aws-recs-dev="aws-recs-login dev"
-alias aws-recs-staging="aws-recs-login staging"
-alias aws-recs-live="aws-recs-login live"
-alias aws-shared-search-dev="aws-shared-search-login dev"
-alias aws-shared-search-live="aws-shared-search-login live"
-
-function k9s-recs() {
-    if [[ $# -ne 2 ]]; then
-        echo "Usage: k9s-recs (dev|staging|live) (main|util)"
-    else
-        declare env=$1 cluster=$2
-        export KUBECONFIG=~/.kube/recs-eks-$cluster-$env.conf
-        aws-recs-login $env > /dev/null
-        k9s
-    fi
-}
-
-function k9s-kd() {
-    if [[ $# -ne 1 ]]; then
-        echo "Usage: k9s-kd (dev|cert|staging|live)"
-    else
-        declare env=$1
-        case $env in
-            "dev"|"cert")
-                export KUBECONFIG=~/.kube/kd-eks-nonprod.conf
-                aws-shared-search-login $env > /dev/null
-                k9s
-                ;;
-            "staging")
-                export KUBECONFIG=~/.kube/kd-eks-staging.conf
-                aws-shared-search-login $env > /dev/null
-                k9s
-                ;;
-            "live")
-                export KUBECONFIG=~/.kube/kd-eks-prod.conf
-                aws-shared-search-login $env > /dev/null
-                k9s
-                ;;
-        *)
-            echo "Unknown env"
-            ;;
-        esac
-    fi
-}
-
 # AWS helper functions              {{{2
 # ======================================
 
@@ -2137,25 +2074,6 @@ function active-directory-service-user-info() {
     fi
     dscl "/Active Directory/SCIENCE/All Domains" read "/Users/${1}"
     echo "For more detailed information open the 'Directory Utility' app"
-}
-
-function recs-build-and-publish-jar() {
-    sbt-no-test clean assembly
-
-    local assembly=$(find target -type f -name *-assembly-*.jar)
-    local appsPath=s3://com-elsevier-recs-live-experiments/stuw-hacked-apps
-
-    if [[ $assembly =~ ".*/(.*)-assembly-.*" ]]
-    then
-        local prefix="${BASH_REMATCH[2]}"
-        local timestamp=$(date +"%Y%m%d-%H%M")
-        local name="${prefix}-assembly-hacked-app-${timestamp}.jar"
-
-        aws-recs-prod
-        aws s3 cp "${assembly}" "${appsPath}/${name}"
-    else
-        echo "Assembly not found"
-    fi
 }
 
 # Reviewer Recommender                                                      {{{1

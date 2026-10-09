@@ -1328,6 +1328,32 @@ function aws-recs-login() {
     fi
 }
 
+# Choose an EKS cluster in the assumed AWS account and point KUBECONFIG at it
+# pull-eks-config eu-west-1
+function pull-eks-config() {
+    local region="${1:-${AWS_REGION:-${AWS_DEFAULT_REGION:-us-east-1}}}"
+    local account cluster kubeconfig
+
+    account=$(aws sts get-caller-identity --query Account --output text 2>/dev/null) || {
+        echo "No valid AWS credentials - run 'assume' first"
+        return 1
+    }
+
+    cluster=$(aws eks list-clusters --region "$region" --query 'clusters[]' --output text | tr '\t' '\n' \
+        | fzf --select-1 --exit-0 --prompt="EKS cluster ($account, $region) > ") || {
+        echo "No cluster selected (or none found in $account / $region)"
+        return 1
+    }
+
+    mkdir -p ~/.kube/eks
+    kubeconfig=~/.kube/eks/$account-$region-$cluster.conf
+    aws eks update-kubeconfig --region "$region" --name "$cluster" \
+        --alias "$account/$cluster" --kubeconfig "$kubeconfig" > /dev/null || return 1
+
+    export KUBECONFIG=$kubeconfig
+    echo "KUBECONFIG=$KUBECONFIG"
+}
+
 # AWS helper functions              {{{2
 # ======================================
 

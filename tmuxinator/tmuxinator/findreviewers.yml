@@ -1,0 +1,19 @@
+# mux start findreviewers       start the local stack
+# mux stop findreviewers        close the tmux session (PostgreSQL keeps running)
+# mux debug findreviewers       inspect the commands before starting
+# Open the sample UI at:
+# http://localhost:4200/app?emJournalAcronym=TEST_JOURNAL&manuscriptNumber=TEST_SUBMISSION&documentId=1000000002&code=READONLY-4ikos41fJQCKLS0aNpfXECLicOyrtbzmPGd0IFAeDkVnknG1Rt5hPLvBUGNH
+
+name: findreviewers
+root: ~/Developer/submissions
+startup_window: ui
+
+windows:
+  - database:
+      - findreviewers-database
+  - api-emulator:
+      - findreviewers-api-emulator
+  - core-service:
+      - findreviewers-core-service
+  - ui:
+      - findreviewers-ui

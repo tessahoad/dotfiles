@@ -59,3 +59,134 @@ function daily-update() {
     tmuxinator start daily --no-attach
     tmux attach -t daily
 }
+
+# Find Reviewers local stack                                                {{{1
+# ==============================================================================
+
+# UI :4200 -> core service :8999 -> API emulator :7071, with PostgreSQL on :5433.
+
+typeset -g FR_REPO="$HOME/Developer/submissions"
+typeset -g FR_PG_DIR=/private/tmp/findreviewers-pgdata
+typeset -g FR_PG_LOG=/private/tmp/findreviewers-pg.log
+typeset -g FR_MOCK_DIR=/private/tmp/findreviewers-wiremock
+typeset -g FR_WIREMOCK_VERSION=3.13.1
+
+function _fr-psql() {
+    local user=$1 database=$2
+    shift 2
+    psql -h 127.0.0.1 -p 5433 -U "$user" -d "$database" -v ON_ERROR_STOP=1 "$@"
+}
+
+function _fr-psql-query() {
+    local user=$1 database=$2 query=$3
+    psql -h 127.0.0.1 -p 5433 -U "$user" -d "$database" -tAc "$query"
+}
+
+function _fr-wait-for() {
+    local description=$1
+    shift
+    for _ in {1..120}; do
+        "$@" >/dev/null 2>&1 && return 0
+        sleep 1
+    done
+    echo "Timed out waiting for ${description}" >&2
+    return 1
+}
+
+# Start PostgreSQL on :5433, create and seed the findreviewers database, then tail its log
+function findreviewers-database() {
+    setopt local_options err_return
+    local sql
+
+    [[ -f "$FR_PG_DIR/PG_VERSION" ]] || initdb -D "$FR_PG_DIR" -A trust --no-locale
+    pg_isready -h 127.0.0.1 -p 5433 -d postgres >/dev/null 2>&1 \
+        || pg_ctl -D "$FR_PG_DIR" -l "$FR_PG_LOG" -o '-p 5433 -h 127.0.0.1' start
+
+    [[ "$(_fr-psql-query "$(id -un)" postgres "SELECT 1 FROM pg_roles WHERE rolname='postgres'")" == 1 ]] \
+        || _fr-psql "$(id -un)" postgres -c 'CREATE ROLE postgres WITH LOGIN SUPERUSER'
+    [[ "$(_fr-psql-query postgres postgres "SELECT 1 FROM pg_database WHERE datname='findreviewers'")" == 1 ]] \
+        || createdb -h 127.0.0.1 -p 5433 -U postgres findreviewers
+
+    if [[ "$(_fr-psql-query postgres findreviewers "SELECT to_regclass('find_reviewers.rh_em_journal')")" != 'find_reviewers.rh_em_journal' ]]; then
+        for sql in "$FR_REPO"/infra/findreviewers-database/sql/V*.sql; do
+            _fr-psql postgres findreviewers -f "$sql"
+        done
+        _fr-psql postgres findreviewers -f "$FR_REPO/infra/findreviewers-database/testdata/testdata01.sql"
+    fi
+
+    if [[ "$(_fr-psql-query postgres findreviewers "SELECT to_regclass('fr_ursdb.journal_info')")" != 'fr_ursdb.journal_info' ]]; then
+        _fr-psql postgres findreviewers -c 'CREATE SCHEMA IF NOT EXISTS fr_ursdb'
+        for sql in "$FR_REPO"/infra/findreviewers-em-replication/database/sql/V*.sql; do
+            _fr-psql postgres findreviewers -f "$sql"
+        done
+        _fr-psql postgres findreviewers -f "$FR_REPO/infra/findreviewers-em-replication/database/testdata/testdata01.sql"
+    fi
+
+    echo 'Local PostgreSQL is ready on 127.0.0.1:5433. The server stays up when tmux exits.'
+    echo "Stop it with: pg_ctl -D $FR_PG_DIR stop"
+    tail -f "$FR_PG_LOG"
+}
+
+# Run WireMock on :7071 serving the API emulator mocks
+function findreviewers-api-emulator() {
+    setopt local_options err_return
+    local jar="$HOME/.m2/repository/org/wiremock/wiremock-standalone/$FR_WIREMOCK_VERSION/wiremock-standalone-$FR_WIREMOCK_VERSION.jar"
+
+    [[ -f "$jar" ]] || mvn -q dependency:get \
+        -Dartifact="org.wiremock:wiremock-standalone:$FR_WIREMOCK_VERSION" -Dtransitive=false \
+        -DremoteRepositories=rt-artifactory::default::https://rt.artifactory.tio.systems/artifactory/maven-knowledge-discovery-release-virtual
+
+    mkdir -p "$FR_MOCK_DIR/mappings" "$FR_MOCK_DIR/__files"
+    cp "$FR_REPO"/test/findreviewers-api-emulator/mocks/*/mappings/*.json "$FR_MOCK_DIR/mappings/"
+    cp "$FR_REPO"/test/findreviewers-api-emulator/mocks/*/__files/*.json "$FR_MOCK_DIR/__files/"
+    java -jar "$jar" --root-dir "$FR_MOCK_DIR" --port 7071 --no-request-journal --disable-request-logging --max-template-cache-entries 50
+}
+
+# Run the core service against the local database and API emulator
+function findreviewers-core-service() {
+    setopt local_options err_return
+    local emulator=http://127.0.0.1:7071
+
+    _fr-wait-for 'PostgreSQL' pg_isready -h 127.0.0.1 -p 5433 -d postgres
+    _fr-wait-for 'API emulator' curl --fail --silent "$emulator/__admin/mappings"
+
+    cd "$FR_REPO/findreviewers-core-service"
+    command env \
+        AWS_REGION=us-east-1 \
+        SPRING_PROFILES_ACTIVE=nonprod \
+        MANAGEMENT_NEWRELIC_METRICS_EXPORT_ACCOUNT_ID=0 \
+        MANAGEMENT_NEWRELIC_METRICS_EXPORT_API_KEY=local-disabled \
+        MANAGEMENT_NEWRELIC_METRICS_EXPORT_ENABLED=false \
+        EM_CLIENT_ID=local EM_CLIENT_SECRET=local \
+        EM_CLIENT_API_HOST=$emulator \
+        EM_CLIENT_REDIRECT_URL=http://127.0.0.1:4200/redirect \
+        EM_BLOCKLIST_CLIENT_ID=local EM_BLOCKLIST_CLIENT_SECRET=local \
+        EM_BLOCKLIST_CLIENT_BASE_URL=$emulator \
+        EM_WEB_API_CLIENT_USERNAME=local EM_WEB_API_CLIENT_PASSWORD=local \
+        EM_WEB_API_CLIENT_HOST=$emulator \
+        SCOPUSAUTOCOMPLETE_CLIENT_ID=local SCOPUSAUTOCOMPLETE_CLIENT_SECRET=local \
+        SCOPUSAUTOCOMPLETE_CLIENT_BASE_URL=$emulator \
+        SCOPUSSHAREDSEARCH_CLIENT_ID=local SCOPUSSHAREDSEARCH_CLIENT_SECRET=local \
+        SCOPUSSHAREDSEARCH_CLIENT_BASE_URL=$emulator \
+        SCOPUSGRAPH_CLIENT_ID=local SCOPUSGRAPH_CLIENT_SECRET=local \
+        SCOPUSGRAPH_CLIENT_BASE_URL=$emulator \
+        FEDERATEDGATEWAY_CLIENT_ID=local FEDERATEDGATEWAY_CLIENT_SECRET=local \
+        FEDERATEDGATEWAY_CLIENT_BASE_URL=$emulator \
+        FEDERATEDGATEWAY_CLIENT_TOKEN_ENDPOINT=$emulator/oauth2/token \
+        REVIEWERHUB_CLIENT_USERNAME=local REVIEWERHUB_CLIENT_PASSWORD=local \
+        REVIEWERHUB_CLIENT_BASE_URL=$emulator \
+        RECOMMENDER_BASE_URL=$emulator \
+        SPRING_DATASOURCE_URL='jdbc:postgresql://127.0.0.1:5433/findreviewers?currentSchema=find_reviewers' \
+        SPRING_DATASOURCE_USERNAME=postgres SPRING_DATASOURCE_PASSWORD=postgres \
+        SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE=0 \
+        ./gradlew :findreviewers-service:bootRun
+}
+
+# Run the Angular UI on :4200, proxying to the local core service
+function findreviewers-ui() {
+    setopt local_options err_return
+
+    cd "$FR_REPO/findreviewers-core-ui"
+    [[ -d node_modules ]] || npm ci
+    npm start -- --proxy-config src/proxy_local_conf.js --host 127.0.0.1 --port 4200
+}
